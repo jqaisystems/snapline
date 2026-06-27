@@ -1,0 +1,140 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  user-select: none;
+}
+
+.region-root {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+}
+.region-img {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  object-fit: fill;
+  -webkit-user-drag: none;
+}
+.region-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.4);
+}
+.region-sel {
+  position: absolute;
+  border: 1.5px solid #8b8dff;
+  box-shadow: 0 0 0 9999px rgba(8, 10, 15, 0.55);
+  background: rgba(111, 114, 241, 0.05);
+}
+.region-size {
+  position: absolute;
+  background: #11141b;
+  border: 1px solid #2a3344;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transform: translateY(-26px);
+  white-space: nowrap;
+}
+.region-loupe {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6);
+  background: #0a0c11;
+}
+.region-loupe canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+.region-loupe-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(10, 12, 17, 0.8);
+  padding: 2px 0;
+}
+.region-hint {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 20, 27, 0.92);
+  border: 1px solid #2a3344;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* window picker */
+.win-root {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.82);
+  backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  overflow: auto;
+}
+.win-title {
+  font-size: 20px;
+  font-weight: 650;
+  margin-bottom: 20px;
+}
+.win-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 1000px;
+}
+.win-card {
+  background: #11141b;
+  border: 1px solid #242b39;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.win-card:hover {
+  border-color: #6f72f1;
+  transform: translateY(-2px);
+}
+.win-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  background: #0a0c11;
+  display: block;
+}
+.win-card .name {
+  padding: 10px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

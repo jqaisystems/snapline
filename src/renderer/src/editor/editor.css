@@ -1,0 +1,318 @@
+.ed {
+  display: grid;
+  grid-template-columns: 64px 1fr 280px;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+.ed-top {
+  grid-column: 1 / 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel);
+}
+.ed-top .title {
+  font-weight: 650;
+  font-size: 14px;
+}
+.ed-top .spacer {
+  flex: 1;
+}
+.ed-tools {
+  background: var(--panel);
+  border-right: 1px solid var(--border-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0;
+}
+.tool {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border: 1px solid transparent;
+  background: transparent;
+}
+.tool:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+.tool.active {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-border);
+}
+.ed-canvas {
+  background: var(--canvas);
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 24px;
+}
+.ed-stage-wrap {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--canvas);
+  will-change: transform;
+}
+.ed-zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.zoom-pct {
+  min-width: 46px;
+  height: 28px;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.zoom-pct:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+.ed-zoom-marquee {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  border: 1.5px solid #8b8dff;
+  background: rgba(111, 114, 241, 0.08);
+  box-shadow: 0 0 0 9999px rgba(8, 10, 15, 0.45);
+}
+.ed-loupe {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6);
+  background: #0a0c11;
+}
+.ed-loupe canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+.ed-loupe-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(10, 12, 17, 0.78);
+  padding: 2px 0;
+}
+.ed-panel {
+  background: var(--panel);
+  border-left: 1px solid var(--border-soft);
+  overflow-y: auto;
+  padding: 16px;
+}
+.ed-panel h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-2);
+  margin: 18px 0 8px;
+}
+.ed-panel h3:first-child {
+  margin-top: 0;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sw {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.sw.active {
+  border-color: var(--ring);
+}
+.bg-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.bg-opt {
+  height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+.bg-opt.active {
+  border-color: var(--ring);
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.slider-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.aspect-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.aspect-row button {
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+.aspect-row button.active {
+  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.text-overlay {
+  position: absolute;
+  z-index: 30;
+  background: rgba(17, 20, 27, 0.96);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: #fff;
+  outline: none;
+  min-width: 80px;
+  max-width: 80vw;
+  font-family: inherit;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ed-history {
+  display: flex;
+  gap: 2px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-soft);
+}
+.ed-recover {
+  width: 360px;
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  background: var(--canvas);
+}
+.lbl-row {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.sw.custom {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border);
+}
+.sw.custom::after {
+  content: '+';
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.sw.custom input[type='color'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+.seg {
+  display: flex;
+  gap: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 3px;
+}
+.seg button {
+  flex: 1;
+  padding: 6px 0;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.grad-custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted-2);
+}
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  cursor: pointer;
+}
+.preset-chip:hover {
+  border-color: var(--accent);
+}
+.preset-chip button {
+  display: inline-flex;
+  border: none;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+.preset-chip button:hover {
+  color: var(--danger);
+}

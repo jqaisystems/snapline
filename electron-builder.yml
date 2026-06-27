@@ -1,0 +1,30 @@
+appId: com.joaoqueiros.snapline
+productName: Snapline
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - "**/*.{node,dll}"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Snapline
+# Auto-update feed. electron-builder writes the installer + latest.yml to GitHub
+# Releases on `npm run dist -- --publish always` (needs GH_TOKEN). The app reads
+# the same release via electron-updater. Confirm owner/repo match your GitHub.
+publish:
+  provider: github
+  owner: jqaisystems
+  repo: snapline
