@@ -5,6 +5,7 @@ export type View =
   | { type: 'all' }
   | { type: 'unfiled' }
   | { type: 'favorites' }
+  | { type: 'trash' }
   | { type: 'project'; id: string }
   | { type: 'tag'; id: string }
 
@@ -28,6 +29,8 @@ export function viewTitle(view: View, projectName?: string, tagName?: string): s
       return t('view.unfiled')
     case 'favorites':
       return t('view.favorites')
+    case 'trash':
+      return t('view.recentlyDeleted')
     case 'project':
       return projectName ?? t('view.project')
     case 'tag':

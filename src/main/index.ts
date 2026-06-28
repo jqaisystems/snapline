@@ -9,6 +9,7 @@ import { showLibraryWindow } from './windows'
 import { shutdownOcr } from './ocr'
 import { registerMediaProtocol, registerMediaSchemePrivileges } from './media'
 import { initUpdater } from './updater'
+import { purgeExpiredTrash } from './trash'
 
 let isQuitting = false
 
@@ -35,6 +36,7 @@ if (!gotLock) {
     })
 
     const store = getStore()
+    purgeExpiredTrash() // drop trashed items past their retention window
     reindexAll()
     registerIpc()
     createTray()

@@ -41,6 +41,7 @@ export async function performCapture(req: CaptureRequest): Promise<CaptureResult
   if (!screenshot) return { ok: false, error: 'Could not save the screenshot.' }
 
   store.addScreenshot(screenshot)
+  store.flush() // file is already on disk: persist now so a crash can't orphan it
   getSearch().update(screenshot, store.getProjects(), store.getTags())
 
   if (settings.copyToClipboardOnCapture) {

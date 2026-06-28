@@ -15,6 +15,7 @@ import {
   uniqueFolderName,
   writeEditedImage
 } from './storageFs'
+import { trashById, restoreById, deletePermanentlyById, emptyTrash } from './trash'
 import { performCapture } from './captureFlow'
 import { getProjectPalette } from './palette'
 import { startScrollCapture, finishScrollCapture, cancelScrollCapture } from './scrollCapture'
@@ -172,14 +173,23 @@ export function registerIpc(): void {
       }
       const root = store.getSettings().storageRoot
       if (project && root) {
-        try {
-          fs.rmSync(path.join(root, project.folderName), { recursive: true, force: true })
-        } catch (err) {
-          console.error('[ipc] delete project folder failed:', err)
+        const target = path.resolve(root, project.folderName)
+        const rootResolved = path.resolve(root)
+        // Defense in depth: only ever recursively delete a folder that resolves to a
+        // direct child of the storage root. Never let a stray folderName escape it.
+        if (target.startsWith(rootResolved + path.sep) && path.dirname(target) === rootResolved) {
+          try {
+            fs.rmSync(target, { recursive: true, force: true })
+          } catch (err) {
+            console.error('[ipc] delete project folder failed:', err)
+          }
+        } else {
+          console.error('[ipc] refused to delete folder outside storage root:', target)
         }
       }
     }
     store.deleteProject(id)
+    store.flush() // project folder/files removed on disk: persist now
     buildTrayMenu()
     reindexAll()
     broadcastSnapshot()
@@ -308,6 +318,7 @@ export function registerIpc(): void {
       filePath: newPath,
       fileName: path.basename(newPath)
     })
+    store.flush() // file already moved on disk: persist the new path now
     if (updated) getSearch().update(updated, store.getProjects(), store.getTags())
     broadcastSnapshot()
     return updated
@@ -329,7 +340,8 @@ export function registerIpc(): void {
     const s = store.getScreenshot(id)
     if (s) {
       if (opts?.deleteFile) {
-        deleteScreenshotFiles(s)
+        // Move to the recoverable trash (removes from index + search inside trashById).
+        trashById(id)
       } else {
         // keep the file on disk, just hide it from the library (watcher must skip it)
         const settings = store.getSettings()
@@ -339,11 +351,27 @@ export function registerIpc(): void {
         try {
           if (s.thumbPath && fs.existsSync(s.thumbPath)) fs.unlinkSync(s.thumbPath)
         } catch { /* ignore */ }
+        store.removeScreenshot(id)
+        store.flush() // thumbnail removed + hiddenPaths updated: persist now
+        getSearch().remove(id)
       }
-      store.removeScreenshot(id)
-      getSearch().remove(id)
       broadcastSnapshot()
     }
+    return { ok: true }
+  })
+  ipcMain.handle('restoreTrashed', (_e, id: string) => {
+    const ok = restoreById(id)
+    if (ok) broadcastSnapshot()
+    return { ok }
+  })
+  ipcMain.handle('deleteTrashedPermanently', (_e, id: string) => {
+    const ok = deletePermanentlyById(id)
+    if (ok) broadcastSnapshot()
+    return { ok }
+  })
+  ipcMain.handle('emptyTrash', () => {
+    emptyTrash()
+    broadcastSnapshot()
     return { ok: true }
   })
   ipcMain.handle('copyScreenshotToClipboard', (_e, id: string) => {
@@ -368,6 +396,7 @@ export function registerIpc(): void {
       getSearch().update(s, store.getProjects(), store.getTags())
       queueEnrichment(s.id)
     }
+    if (imported.length) store.flush() // files already copied in: persist now
     broadcastSnapshot()
     return imported
   })
@@ -386,11 +415,13 @@ export function registerIpc(): void {
       const created = indexFile(filePath, s.projectId, 'import')
       created.tagIds = [...s.tagIds]
       store.addScreenshot(created)
+      store.flush() // new edited file written to disk: persist now
       getSearch().update(created, store.getProjects(), store.getTags())
       broadcastSnapshot()
       return created
     }
     const updated = store.updateScreenshot(id, refreshFileMeta(store.getScreenshot(id)!))
+    store.flush() // original file overwritten on disk: persist refreshed metadata now
     if (updated) getSearch().update(updated, store.getProjects(), store.getTags())
     broadcastSnapshot()
     return updated

@@ -76,16 +76,38 @@ pin, scrollctl. Four post-launch "improvement" directions chosen; three done, on
 - DONE (2026-06-27) Auto-update (electron-updater, GitHub Releases provider): `src/main/updater.ts`
   (`initUpdater()` = startup + 6h background check, download, install on quit via `autoInstallOnAppQuit`;
   `checkForUpdatesManual()` for the tray "Check for updates…" item; native Notification with in-app
-  toast fallback; no-op when `!app.isPackaged`). `publish:` block in `electron-builder.yml` points at
-  github owner `joaoqueiros` repo `snapline` — CONFIRM the real GitHub owner/repo before publishing.
-  electron-updater stays external via `externalizeDepsPlugin`. To ship a release: create the GitHub
-  repo, set `GH_TOKEN`, bump `version`, run `npm run dist -- --publish always`. Can't be tested in dev
-  (packaged-only by design). Unsigned auto-update works; SmartScreen publisher warning is the separate
-  code-signing item below.
+  toast fallback; no-op when `!app.isPackaged`). `publish:` block in `electron-builder.yml` = github
+  owner `jqaisystems` repo `snapline`, now a **public** repo (electron-updater's github provider needs
+  public Releases + no runtime token). electron-updater stays external via `externalizeDepsPlugin`. To
+  ship a release: `GH_TOKEN=$(gh auth token) npm run dist -- --publish always` (bump `version` first).
+  Can't be tested in dev (packaged-only by design). Unsigned auto-update works; SmartScreen publisher
+  warning is the separate code-signing item below.
+- DONE (2026-06-28) Full audit (4 parallel agents) + must-fix cluster fixed: (a) **atomic store write**
+  — `store.ts` writes tmp+rename, keeps `.bak`, recovers from `.bak` on parse failure (was: direct
+  writeFileSync → crash mid-write wiped the whole library). (b) **flush-after-fs-op** — `store.flush()`
+  now called synchronously after capture/move/trash/restore/delete/import/saveEdited so a crash can't
+  strand a file with a stale index. (c) **light-theme dark-flash** fixed (gate `applyTheme` on `snap`).
+  (d) **updateProject whitelist** (drops folderName/id from patches) + `deleteProject` rmSync now
+  asserts the target resolves to a direct child of the storage root. Tests/typecheck/build/boot all
+  green. NOT yet fixed (known, lower priority): packaged OCR is online-only (eng.traineddata not bundled
+  — needs `extraResources` + `langPath`/`cachePath` in `ocr.ts`); `snapmedia://` reads any abs path
+  (confine to storageRoot); `aiBaseUrl` SSRF; `hiddenPaths` unbounded; `sandbox:false`; build doesn't
+  run typecheck. See git history / this entry for the audit backlog.
+- DONE (2026-06-27) Recently-deleted trash + undo: "Delete" now moves files to a hidden
+  `.snapline-trash/` folder under the storage root (watcher ignores dotfiles, so no index churn) instead
+  of unlinking. `TrashedScreenshot` type + `store.trash` + `src/main/trash.ts` (`trashById`/`restoreById`/
+  `deletePermanentlyById`/`emptyTrash`/`purgeExpiredTrash`); thumbnails kept through trashing for previews;
+  restore goes back to the original project (or Unfiled if gone). `settings.trashRetentionDays` (default 30,
+  0 = forever) auto-purges on startup. IPC `restoreTrashed`/`deleteTrashedPermanently`/`emptyTrash`.
+  UI: "Recently deleted" sidebar view (`TrashView.tsx`) with Restore/Delete-forever/Empty, retention
+  control in Settings, and an actionable **Undo toast** (`showActionToast` in `ui/hooks.tsx`) after every
+  delete (Detail + bulk). "Remove from Snapline" (hide, keep file) unchanged. Fully localized (en+pt).
 - TODO NEXT SESSION — Ship-ready (last item): code-signing path (avoid Windows "unknown publisher"
   warning). Ask first: whether a paid OV/EV code-signing cert is wanted (EV clears SmartScreen instantly).
+  Also: auto-update repo `jqaisystems/snapline` now exists + project is under git (pushed private);
+  remaining publish steps are GH_TOKEN + `npm run dist -- --publish always`.
 
 ## Deferred / future (outside the 4 directions)
 
 - GIF/video recording; vector-embedding semantic search; packaged-build offline OCR (bundle Tesseract
-  language data); per-project mood-board view; quick-share links; "recently deleted" trash.
+  language data); per-project mood-board view; quick-share links.

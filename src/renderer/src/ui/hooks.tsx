@@ -16,20 +16,59 @@ export function useSnapshot(): LibrarySnapshot | null {
   return snap
 }
 
+// Renderer-local actionable toasts (e.g. "Moved to trash. Undo"). Window-scoped:
+// a delete and its undo button live in the same window, so a module-level emitter
+// is enough. Distinct from api.onToast, which carries plain strings from main.
+interface ActionToast {
+  message: string
+  actionLabel: string
+  onAction: () => void
+}
+const actionListeners = new Set<(t: ActionToast) => void>()
+export function showActionToast(message: string, actionLabel: string, onAction: () => void): void {
+  actionListeners.forEach((l) => l({ message, actionLabel, onAction }))
+}
+
+interface ToastItem {
+  id: string
+  msg: string
+  actionLabel?: string
+  onAction?: () => void
+}
+
 export function ToastHost(): React.ReactElement {
-  const [items, setItems] = useState<{ id: string; msg: string }[]>([])
+  const [items, setItems] = useState<ToastItem[]>([])
+  const add = (item: Omit<ToastItem, 'id'>, ttl: number): void => {
+    const id = Math.random().toString(36).slice(2)
+    setItems((s) => [...s, { ...item, id }])
+    setTimeout(() => setItems((s) => s.filter((t) => t.id !== id)), ttl)
+  }
   useEffect(() => {
-    return api.onToast((msg) => {
-      const id = Math.random().toString(36).slice(2)
-      setItems((s) => [...s, { id, msg }])
-      setTimeout(() => setItems((s) => s.filter((t) => t.id !== id)), 2800)
-    })
+    const offToast = api.onToast((msg) => add({ msg }, 2800))
+    const onAction = (t: ActionToast): void => add({ msg: t.message, actionLabel: t.actionLabel, onAction: t.onAction }, 6000)
+    actionListeners.add(onAction)
+    return () => {
+      offToast()
+      actionListeners.delete(onAction)
+    }
   }, [])
+  const dismiss = (id: string): void => setItems((s) => s.filter((t) => t.id !== id))
   return (
     <div className="toast-host">
       {items.map((t) => (
         <div className="toast" key={t.id}>
           {t.msg}
+          {t.actionLabel && (
+            <button
+              className="toast-action"
+              onClick={() => {
+                t.onAction?.()
+                dismiss(t.id)
+              }}
+            >
+              {t.actionLabel}
+            </button>
+          )}
         </div>
       ))}
     </div>

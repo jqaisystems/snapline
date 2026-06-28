@@ -81,7 +81,7 @@ export const pt: Dict = {
   'detail.reanalyze': 'Reanalisar com IA',
   'detail.deleteTitle': 'Eliminar esta captura?',
   'detail.deleteHelp':
-    '"Remover do Snapline" oculta-a da biblioteca mas mantém o ficheiro na pasta. "Eliminar ficheiro" apaga-o do disco permanentemente.',
+    '"Remover do Snapline" mantém o ficheiro no disco mas deixa de o acompanhar. "Mover para o lixo" pode ser restaurado durante algum tempo antes de desaparecer de vez.',
   'detail.cancel': 'Cancelar',
   'detail.removeFromSnapline': 'Remover do Snapline',
   'detail.deleteFile': 'Eliminar ficheiro',
@@ -116,7 +116,7 @@ export const pt: Dict = {
   'app.emptyImport': 'Faça uma captura ou largue aqui ficheiros de imagem para importar.',
   'app.deleteNScreenshots': 'Eliminar {n} capturas?',
   'app.bulkDeleteHelp':
-    '"Remover do Snapline" mantém os ficheiros nas suas pastas. "Eliminar ficheiros" apaga-os do disco permanentemente.',
+    '"Remover do Snapline" mantém os ficheiros no disco. "Mover para o lixo" pode ser restaurado antes de serem eliminados.',
   'app.cancel': 'Cancelar',
   'app.removeFromSnapline': 'Remover do Snapline',
   'app.deleteFiles': 'Eliminar ficheiros',
@@ -361,5 +361,31 @@ export const pt: Dict = {
   'editor.contrastLargeAAA': 'Texto grande AAA (4.5)',
   'editor.contrastUiGraphics': 'IU / gráficos (3)',
   'editor.pass': 'Passa',
-  'editor.fail': 'Falha'
+  'editor.fail': 'Falha',
+
+  // ---- lixo (eliminações recuperáveis) ----
+  'view.recentlyDeleted': 'Eliminados recentemente',
+  'nav.recentlyDeleted': 'Eliminados recentemente',
+  'trash.moveToTrash': 'Mover para o lixo',
+  'trash.movedOne': 'Movido para o lixo',
+  'trash.movedMany': '{n} movidos para o lixo',
+  'trash.undo': 'Anular',
+  'trash.restore': 'Restaurar',
+  'trash.deleteForever': 'Eliminar permanentemente',
+  'trash.emptyTrash': 'Esvaziar lixo',
+  'trash.deletedAgo': 'Eliminado {ago}',
+  'trash.retentionNote': 'Os itens são eliminados definitivamente ao fim de {days} dias.',
+  'trash.retentionForever': 'Os itens são mantidos até os eliminar.',
+  'trash.empty': 'O lixo está vazio',
+  'trash.emptyHint': 'As capturas eliminadas ficam aqui para as poder restaurar.',
+  'trash.emptyConfirmTitle': 'Esvaziar o lixo?',
+  'trash.emptyConfirmHelp': 'Isto elimina permanentemente {n} item(ns) do disco. Não é possível anular.',
+  'trash.cancel': 'Cancelar',
+  'settings.trashRetention': 'Manter itens eliminados',
+  'settings.trashRetentionDesc': 'Durante quanto tempo as capturas restauráveis ficam no lixo.',
+  'settings.retention7': '7 dias',
+  'settings.retention14': '14 dias',
+  'settings.retention30': '30 dias',
+  'settings.retention90': '90 dias',
+  'settings.retentionForever': 'Até eu o esvaziar'
 }

@@ -3,12 +3,13 @@ import type { Project, ProjectPalette as ProjectPaletteData } from '@shared/type
 import { api, applyTheme } from '@ui/api'
 import { Icon } from '@ui/icons'
 import { t, setLocale } from '@ui/i18n'
-import { ToastHost, useSnapshot, Modal } from '@ui/hooks'
+import { ToastHost, useSnapshot, Modal, showActionToast } from '@ui/hooks'
 import Sidebar from './Sidebar'
 import Grid from './Grid'
 import Detail from './Detail'
 import Settings from './Settings'
 import Onboarding from './Onboarding'
+import TrashView from './TrashView'
 import { ExportSheetModal } from './ExportSheet'
 import { type SortMode, type View, viewToQuery, viewTitle } from './state'
 import './library.css'
@@ -46,12 +47,18 @@ export default function App(): React.ReactElement {
 
   useEffect(() => {
     if (!snap) return
+    if (view.type === 'trash') {
+      setIds([]) // trash is rendered from snapshot.trash, not the search index
+      return
+    }
     api.search(viewToQuery(view, debounced, sort)).then(setIds)
   }, [snap, view, debounced, sort])
 
-  // Keep the UI theme in sync with settings.
+  // Keep the UI theme in sync with settings. Skip while the snapshot is still loading:
+  // initThemeFromCache() already applied the cached theme before first paint, so calling
+  // applyTheme(undefined) here would flash dark over a cached light theme.
   useEffect(() => {
-    applyTheme(snap?.settings.theme)
+    if (snap) applyTheme(snap.settings.theme)
   }, [snap?.settings.theme])
 
   // Keyboard: arrows to move focus, Ctrl+A select all, Delete, Enter to edit, Esc to clear.
@@ -193,11 +200,17 @@ export default function App(): React.ReactElement {
     setExportItems(list)
   }
   function bulkDeleteDo(deleteFile: boolean): void {
-    const n = selectedIds.size
-    selectedIds.forEach((id) => api.deleteScreenshot(id, { deleteFile }))
+    const ids = [...selectedIds]
+    const n = ids.length
+    ids.forEach((id) => api.deleteScreenshot(id, { deleteFile }))
     setSelectedIds(new Set())
     setBulkDelete(false)
-    api.toast(t('app.deleted', { n }))
+    if (deleteFile) {
+      // Trashed: offer a one-tap undo that restores the whole batch.
+      showActionToast(t('trash.movedMany', { n }), t('trash.undo'), () => ids.forEach((id) => api.restoreTrashed(id)))
+    } else {
+      api.toast(t('app.deleted', { n }))
+    }
   }
 
   return (
@@ -216,6 +229,9 @@ export default function App(): React.ReactElement {
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
+      {view.type === 'trash' ? (
+        <TrashView trash={snap.trash} retentionDays={snap.settings.trashRetentionDays} />
+      ) : (
       <div className="main">
         <div className="topbar">
           <div className="capture-group">
@@ -365,6 +381,7 @@ export default function App(): React.ReactElement {
           emptyHint={text ? t('app.noMatches') : t('app.emptyImport')}
         />
       </div>
+      )}
 
       {selected && (
         <Detail
@@ -390,7 +407,7 @@ export default function App(): React.ReactElement {
                 {t('app.removeFromSnapline')}
               </button>
               <button className="btn danger" onClick={() => bulkDeleteDo(true)}>
-                {t('app.deleteFiles')}
+                {t('trash.moveToTrash')}
               </button>
             </div>
           </div>

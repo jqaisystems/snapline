@@ -2,7 +2,7 @@ import { app, safeStorage } from 'electron'
 import { randomUUID } from 'crypto'
 import fs from 'fs'
 import path from 'path'
-import type { LibrarySnapshot, Project, Screenshot, Settings, Tag } from '../shared/types'
+import type { LibrarySnapshot, Project, Screenshot, Settings, Tag, TrashedScreenshot } from '../shared/types'
 
 const PALETTE = [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6',
@@ -20,6 +20,7 @@ function defaultSettings(): Settings {
     onboarded: false,
     theme: 'dark',
     locale: 'en',
+    trashRetentionDays: 30,
     launchOnStartup: false,
     afterCapture: 'editor',
     copyToClipboardOnCapture: true,
@@ -53,6 +54,7 @@ interface DbShape {
   projects: Project[]
   tags: Tag[]
   screenshots: Screenshot[]
+  trash: TrashedScreenshot[]
 }
 
 class Store {
@@ -70,46 +72,71 @@ class Store {
     this.loadApiKey()
   }
 
-  private load(): DbShape {
+  // Parse a data file into a DbShape, or null if missing/corrupt.
+  private readFrom(p: string): DbShape | null {
     try {
-      if (fs.existsSync(this.dataPath)) {
-        const raw = JSON.parse(fs.readFileSync(this.dataPath, 'utf-8'))
-        return {
-          settings: { ...defaultSettings(), ...raw.settings, hasApiKey: false },
-          projects: raw.projects ?? [],
-          tags: raw.tags ?? [],
-          screenshots: raw.screenshots ?? []
-        }
+      if (!fs.existsSync(p)) return null
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'))
+      return {
+        settings: { ...defaultSettings(), ...raw.settings, hasApiKey: false },
+        projects: raw.projects ?? [],
+        tags: raw.tags ?? [],
+        screenshots: raw.screenshots ?? [],
+        trash: raw.trash ?? []
       }
     } catch (err) {
-      console.error('[store] failed to load, starting fresh:', err)
+      console.error(`[store] could not parse ${p}:`, err)
+      return null
     }
-    return { settings: defaultSettings(), projects: [], tags: [], screenshots: [] }
+  }
+
+  private load(): DbShape {
+    const main = this.readFrom(this.dataPath)
+    if (main) return main
+    // Main file missing or corrupt: try the last-known-good backup before giving up,
+    // so a crash mid-write can never silently wipe the whole library.
+    const bak = this.readFrom(this.dataPath + '.bak')
+    if (bak) {
+      console.warn('[store] main data file unreadable; recovered from .bak')
+      return bak
+    }
+    return { settings: defaultSettings(), projects: [], tags: [], screenshots: [], trash: [] }
+  }
+
+  // Atomic write: serialize to a temp file, snapshot the previous good file to .bak,
+  // then rename temp over the live file (atomic on the same volume). A crash can leave
+  // a stray .tmp but never a half-written data file.
+  private writeDb(): void {
+    try {
+      const toSave = { ...this.db, settings: { ...this.db.settings, hasApiKey: false } }
+      const json = JSON.stringify(toSave, null, 2)
+      const tmp = this.dataPath + '.tmp'
+      fs.writeFileSync(tmp, json, 'utf-8')
+      try {
+        if (fs.existsSync(this.dataPath)) fs.copyFileSync(this.dataPath, this.dataPath + '.bak')
+      } catch {
+        /* backup is best-effort */
+      }
+      fs.renameSync(tmp, this.dataPath)
+    } catch (err) {
+      console.error('[store] write failed:', err)
+    }
   }
 
   private persist(): void {
     if (this.saveTimer) clearTimeout(this.saveTimer)
-    this.saveTimer = setTimeout(() => {
-      try {
-        const toSave = { ...this.db, settings: { ...this.db.settings, hasApiKey: false } }
-        fs.writeFileSync(this.dataPath, JSON.stringify(toSave, null, 2), 'utf-8')
-      } catch (err) {
-        console.error('[store] persist failed:', err)
-      }
-    }, 250)
+    this.saveTimer = setTimeout(() => this.writeDb(), 250)
   }
 
+  // Force an immediate synchronous write. Call after any operation that has already
+  // changed the filesystem (capture/move/trash/restore/delete/import/edit) so a crash
+  // cannot strand a file with the index pointing at the wrong place.
   flush(): void {
     if (this.saveTimer) {
       clearTimeout(this.saveTimer)
       this.saveTimer = null
     }
-    try {
-      const toSave = { ...this.db, settings: { ...this.db.settings, hasApiKey: false } }
-      fs.writeFileSync(this.dataPath, JSON.stringify(toSave, null, 2), 'utf-8')
-    } catch (err) {
-      console.error('[store] flush failed:', err)
-    }
+    this.writeDb()
   }
 
   // ---- settings ----
@@ -194,7 +221,13 @@ class Store {
   updateProject(id: string, patch: Partial<Project>): Project | undefined {
     const p = this.db.projects.find((x) => x.id === id)
     if (!p) return undefined
-    Object.assign(p, patch)
+    // Whitelist user-editable fields. Never accept id/folderName/createdAt from a patch:
+    // folderName feeds filesystem paths (incl. recursive project-folder deletion), so a
+    // tampered value could escape the storage root.
+    const ALLOWED: (keyof Project)[] = ['name', 'color', 'icon', 'archived', 'sortOrder']
+    for (const k of ALLOWED) {
+      if (k in patch && patch[k] !== undefined) (p[k] as Project[typeof k]) = patch[k]!
+    }
     this.persist()
     return p
   }
@@ -274,12 +307,41 @@ class Store {
     return s
   }
 
+  // ---- trash (recoverable deletes) ----
+  getTrash(): TrashedScreenshot[] {
+    return this.db.trash.slice().sort((a, b) => b.deletedAt - a.deletedAt)
+  }
+
+  getTrashItem(id: string): TrashedScreenshot | undefined {
+    return this.db.trash.find((t) => t.screenshot.id === id)
+  }
+
+  addToTrash(item: TrashedScreenshot): void {
+    this.db.trash.push(item)
+    this.persist()
+  }
+
+  removeFromTrash(id: string): TrashedScreenshot | undefined {
+    const item = this.db.trash.find((t) => t.screenshot.id === id)
+    this.db.trash = this.db.trash.filter((t) => t.screenshot.id !== id)
+    this.persist()
+    return item
+  }
+
+  clearTrash(): TrashedScreenshot[] {
+    const items = this.db.trash.slice()
+    this.db.trash = []
+    this.persist()
+    return items
+  }
+
   snapshot(): LibrarySnapshot {
     return {
       settings: this.getSettings(),
       projects: this.getProjects(),
       tags: this.getTags(),
-      screenshots: this.getScreenshots()
+      screenshots: this.getScreenshots(),
+      trash: this.getTrash()
     }
   }
 }

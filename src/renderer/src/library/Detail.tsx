@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import type { LibrarySnapshot, Screenshot } from '@shared/types'
 import { api } from '@ui/api'
 import { Icon } from '@ui/icons'
-import { Modal } from '@ui/hooks'
+import { Modal, showActionToast } from '@ui/hooks'
 import { t } from '@ui/i18n'
 
 function fmtBytes(n: number): string {
@@ -205,11 +205,12 @@ export default function Detail({ snap, shot, onClose }: Props): React.ReactEleme
               className="btn danger"
               onClick={() => {
                 api.deleteScreenshot(shot.id, { deleteFile: true })
+                showActionToast(t('trash.movedOne'), t('trash.undo'), () => api.restoreTrashed(shot.id))
                 setConfirming(false)
                 onClose()
               }}
             >
-              {t('detail.deleteFile')}
+              {t('trash.moveToTrash')}
             </button>
           </div>
         </div>

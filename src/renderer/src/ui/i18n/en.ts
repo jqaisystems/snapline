@@ -80,7 +80,7 @@ export const en: Dict = {
   'detail.reanalyze': 'Re-analyze with AI',
   'detail.deleteTitle': 'Delete this screenshot?',
   'detail.deleteHelp':
-    '"Remove from Snapline" hides it from the library but keeps the file in its folder. "Delete file" erases it from disk permanently.',
+    '"Remove from Snapline" keeps the file on disk but stops tracking it. "Move to Trash" can be restored for a while before it is gone for good.',
   'detail.cancel': 'Cancel',
   'detail.removeFromSnapline': 'Remove from Snapline',
   'detail.deleteFile': 'Delete file',
@@ -115,7 +115,7 @@ export const en: Dict = {
   'app.emptyImport': 'Capture a screenshot or drop image files here to import.',
   'app.deleteNScreenshots': 'Delete {n} screenshots?',
   'app.bulkDeleteHelp':
-    '"Remove from Snapline" keeps the files in their folders. "Delete files" erases them from disk permanently.',
+    '"Remove from Snapline" keeps the files on disk. "Move to Trash" can be restored before they are purged.',
   'app.cancel': 'Cancel',
   'app.removeFromSnapline': 'Remove from Snapline',
   'app.deleteFiles': 'Delete files',
@@ -358,5 +358,31 @@ export const en: Dict = {
   'editor.contrastLargeAAA': 'Large text AAA (4.5)',
   'editor.contrastUiGraphics': 'UI / graphics (3)',
   'editor.pass': 'Pass',
-  'editor.fail': 'Fail'
+  'editor.fail': 'Fail',
+
+  // ---- trash (recoverable deletes) ----
+  'view.recentlyDeleted': 'Recently deleted',
+  'nav.recentlyDeleted': 'Recently deleted',
+  'trash.moveToTrash': 'Move to Trash',
+  'trash.movedOne': 'Moved to trash',
+  'trash.movedMany': 'Moved {n} to trash',
+  'trash.undo': 'Undo',
+  'trash.restore': 'Restore',
+  'trash.deleteForever': 'Delete permanently',
+  'trash.emptyTrash': 'Empty trash',
+  'trash.deletedAgo': 'Deleted {ago}',
+  'trash.retentionNote': 'Items are deleted for good after {days} days.',
+  'trash.retentionForever': 'Items are kept until you delete them.',
+  'trash.empty': 'Trash is empty',
+  'trash.emptyHint': 'Deleted screenshots wait here so you can restore them.',
+  'trash.emptyConfirmTitle': 'Empty the trash?',
+  'trash.emptyConfirmHelp': 'This permanently deletes {n} item(s) from disk. This cannot be undone.',
+  'trash.cancel': 'Cancel',
+  'settings.trashRetention': 'Keep deleted items',
+  'settings.trashRetentionDesc': 'How long restorable screenshots stay in the trash.',
+  'settings.retention7': '7 days',
+  'settings.retention14': '14 days',
+  'settings.retention30': '30 days',
+  'settings.retention90': '90 days',
+  'settings.retentionForever': 'Until I empty it'
 }

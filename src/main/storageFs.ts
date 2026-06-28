@@ -6,6 +6,8 @@ import type { CaptureMode, Project, Screenshot, Settings } from '../shared/types
 import { getStore } from './store'
 
 const UNFILED_FOLDER = '_Unfiled'
+// Dot-prefixed so the chokidar watcher (which ignores dotfiles) never indexes it.
+const TRASH_FOLDER = '.snapline-trash'
 export const SUPPORTED_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp']
 
 function thumbsDir(): string {
@@ -220,6 +222,62 @@ export function deleteScreenshotFiles(screenshot: Screenshot): void {
   try {
     if (screenshot.thumbPath && fs.existsSync(screenshot.thumbPath)) fs.unlinkSync(screenshot.thumbPath)
   } catch { /* ignore */ }
+}
+
+function trashDir(): string | null {
+  const root = ensureRoot()
+  if (!root) return null
+  const dir = path.join(root, TRASH_FOLDER)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+// Move a screenshot's file into the trash folder (recoverable). Thumbnail is kept
+// untouched so the trash view can still show a preview. Returns the new path, or
+// null if the trash folder is unavailable (caller should fall back to hard delete).
+export function moveFileToTrash(screenshot: Screenshot): string | null {
+  const dir = trashDir()
+  if (!dir) return null
+  // Prefix with the id to guarantee uniqueness inside the flat trash folder.
+  const dest = path.join(dir, `${screenshot.id}__${path.basename(screenshot.filePath)}`)
+  try {
+    fs.renameSync(screenshot.filePath, dest)
+    return dest
+  } catch {
+    try {
+      fs.copyFileSync(screenshot.filePath, dest)
+      fs.unlinkSync(screenshot.filePath)
+      return dest
+    } catch (err) {
+      console.error('[storageFs] move to trash failed:', err)
+      return null
+    }
+  }
+}
+
+// Move a trashed file back out to a project folder. Returns the restored path
+// (its thumbnail never moved, so it stays valid).
+export function restoreFileFromTrash(screenshot: Screenshot, project: Project | null): string | null {
+  const dir = projectDir(project)
+  if (!dir) return null
+  // Strip the "<id>__" trash prefix to recover the original base name.
+  const trashedBase = path.basename(screenshot.filePath).replace(/^[^_]+__/, '')
+  const ext = path.extname(trashedBase)
+  const base = sanitize(path.basename(trashedBase, ext))
+  const dest = uniqueFilePath(dir, base, ext)
+  try {
+    fs.renameSync(screenshot.filePath, dest)
+    return dest
+  } catch {
+    try {
+      fs.copyFileSync(screenshot.filePath, dest)
+      fs.unlinkSync(screenshot.filePath)
+      return dest
+    } catch (err) {
+      console.error('[storageFs] restore from trash failed:', err)
+      return null
+    }
+  }
 }
 
 // Write edited image (data URL) back to disk. replace=true overwrites; else creates "<name>-edited".

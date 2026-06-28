@@ -260,6 +260,9 @@ select {
   pointer-events: none;
 }
 .toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   background: var(--panel-3);
   border: 1px solid var(--border);
   padding: 10px 16px;
@@ -267,6 +270,19 @@ select {
   box-shadow: var(--shadow);
   font-size: 13px;
   animation: toast-in 0.18s ease;
+  pointer-events: auto;
+}
+.toast-action {
+  border: none;
+  background: transparent;
+  color: var(--accent-text);
+  font-weight: 650;
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+}
+.toast-action:hover {
+  text-decoration: underline;
 }
 @keyframes toast-in {
   from {

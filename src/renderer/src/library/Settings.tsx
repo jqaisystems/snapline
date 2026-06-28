@@ -106,6 +106,20 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
               <Row title={t('settings.launchAtStartup')} desc={t('settings.launchAtStartupDesc')}>
                 <Toggle on={settings.launchOnStartup} onChange={(v) => set({ launchOnStartup: v })} />
               </Row>
+              <Row title={t('settings.trashRetention')} desc={t('settings.trashRetentionDesc')}>
+                <select
+                  className="select"
+                  style={{ width: 170 }}
+                  value={String(settings.trashRetentionDays)}
+                  onChange={(e) => set({ trashRetentionDays: Number(e.target.value) })}
+                >
+                  <option value="7">{t('settings.retention7')}</option>
+                  <option value="14">{t('settings.retention14')}</option>
+                  <option value="30">{t('settings.retention30')}</option>
+                  <option value="90">{t('settings.retention90')}</option>
+                  <option value="0">{t('settings.retentionForever')}</option>
+                </select>
+              </Row>
               <div>
                 <div className="set-row">
                   <div className="lbl">

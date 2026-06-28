@@ -67,12 +67,21 @@ export interface Screenshot {
   aiStatus: AiStatus
 }
 
+// A screenshot that was deleted into the recoverable trash. screenshot.filePath
+// points into the trash folder; screenshot.projectId is preserved so it can be
+// restored to where it came from.
+export interface TrashedScreenshot {
+  screenshot: Screenshot
+  deletedAt: number
+}
+
 export interface Settings {
   storageRoot: string | null
   activeProjectId: string | null
   onboarded: boolean
   theme: 'dark' | 'light'
   locale: string // UI language code, e.g. 'en'. Falls back to English for unknown codes.
+  trashRetentionDays: number // recoverable-trash retention before auto-purge
   launchOnStartup: boolean
   // capture behaviour
   afterCapture: 'editor' | 'save' | 'pin' // open editor / quick-save / pin floating
@@ -159,6 +168,7 @@ export interface LibrarySnapshot {
   projects: Project[]
   tags: Tag[]
   screenshots: Screenshot[]
+  trash: TrashedScreenshot[]
 }
 
 export interface SearchQuery {
@@ -231,6 +241,10 @@ export interface SnaplineApi {
   setScreenshotTags: (id: string, tagIds: string[]) => Promise<Screenshot>
   toggleFavorite: (id: string) => Promise<Screenshot>
   deleteScreenshot: (id: string, opts: { deleteFile: boolean }) => Promise<{ ok: boolean }>
+  // recoverable trash
+  restoreTrashed: (id: string) => Promise<{ ok: boolean }>
+  deleteTrashedPermanently: (id: string) => Promise<{ ok: boolean }>
+  emptyTrash: () => Promise<{ ok: boolean }>
   copyScreenshotToClipboard: (id: string) => Promise<{ ok: boolean }>
   copyOcrText: (id: string) => Promise<{ ok: boolean; text: string }>
   revealScreenshot: (id: string) => Promise<void>

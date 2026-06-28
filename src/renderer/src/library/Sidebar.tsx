@@ -76,6 +76,14 @@ export default function Sidebar({ snap, view, onView, onNewProject, onRenameProj
           <span>{t('nav.favorites')}</span>
           <span className="count">{shots.filter((s) => s.favorite).length}</span>
         </div>
+        <div
+          className={`nav-item ${isActiveView({ type: 'trash' }) ? 'active' : ''}`}
+          onClick={() => onView({ type: 'trash' })}
+        >
+          <Icon name="trash" size={17} />
+          <span>{t('nav.recentlyDeleted')}</span>
+          {snap.trash.length > 0 && <span className="count">{snap.trash.length}</span>}
+        </div>
 
         <div className="side-section">
           <div className="side-head">
