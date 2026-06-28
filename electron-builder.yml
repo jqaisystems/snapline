@@ -8,6 +8,13 @@ files:
   - package.json
 asarUnpack:
   - "**/*.{node,dll}"
+  # Tesseract worker script + core wasm must load from a real unpacked dir, not asar.
+  - "node_modules/tesseract.js/**"
+  - "node_modules/tesseract.js-core/**"
+# Ship the OCR language model so text extraction works fully offline (no CDN download).
+extraResources:
+  - from: eng.traineddata
+    to: tessdata/eng.traineddata
 win:
   target:
     - target: nsis

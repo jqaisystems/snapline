@@ -89,10 +89,17 @@ pin, scrollctl. Four post-launch "improvement" directions chosen; three done, on
   strand a file with a stale index. (c) **light-theme dark-flash** fixed (gate `applyTheme` on `snap`).
   (d) **updateProject whitelist** (drops folderName/id from patches) + `deleteProject` rmSync now
   asserts the target resolves to a direct child of the storage root. Tests/typecheck/build/boot all
-  green. NOT yet fixed (known, lower priority): packaged OCR is online-only (eng.traineddata not bundled
-  — needs `extraResources` + `langPath`/`cachePath` in `ocr.ts`); `snapmedia://` reads any abs path
-  (confine to storageRoot); `aiBaseUrl` SSRF; `hiddenPaths` unbounded; `sandbox:false`; build doesn't
-  run typecheck. See git history / this entry for the audit backlog.
+  green.
+- DONE (2026-06-28) Offline OCR bundling: `electron-builder.yml` `extraResources` ships
+  `eng.traineddata` to `resources/tessdata/`, and `asarUnpack` now includes `tesseract.js`/
+  `tesseract.js-core` so the worker + wasm load from a real dir. `ocr.ts` resolves the bundled model
+  (`process.resourcesPath/tessdata` packaged, `app.getAppPath()` in dev) and calls `createWorker('eng',
+  1, { langPath, cachePath: userData, cacheMethod: 'none', gzip: false })`, falling back to the CDN if
+  the file is missing. Verified in plain node: model loads in ~0.5s, `recognize` runs (the bare
+  `electron script.cjs` harness hangs on tesseract worker init, but the real main-process app does not).
+  Recommend a real `dist` build + install to confirm the packaged path before release.
+- NOT yet fixed (known, lower priority audit backlog): `snapmedia://` reads any abs path (confine to
+  storageRoot); `aiBaseUrl` SSRF; `hiddenPaths` unbounded; `sandbox:false`; build doesn't run typecheck.
 - DONE (2026-06-27) Recently-deleted trash + undo: "Delete" now moves files to a hidden
   `.snapline-trash/` folder under the storage root (watcher ignores dotfiles, so no index churn) instead
   of unlinking. `TrashedScreenshot` type + `store.trash` + `src/main/trash.ts` (`trashById`/`restoreById`/
