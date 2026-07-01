@@ -9,6 +9,10 @@ import { TRAY_ICON_DATA_URL } from './icons.generated'
 
 let tray: Tray | null = null
 
+// In a Microsoft Store (MSIX) build the Store handles updates, so the manual "Check for
+// updates…" item is meaningless and is omitted from the tray menu.
+const isStoreBuild = (process as NodeJS.Process & { windowsStore?: boolean }).windowsStore === true
+
 export function buildTrayMenu(): void {
   if (!tray) return
   const store = getStore()
@@ -51,7 +55,9 @@ export function buildTrayMenu(): void {
     },
     { type: 'separator' },
     { label: 'Open Snapline', click: () => showLibraryWindow() },
-    { label: 'Check for updates…', click: () => checkForUpdatesManual() },
+    ...(isStoreBuild
+      ? []
+      : [{ label: 'Check for updates…', click: () => checkForUpdatesManual() } as Electron.MenuItemConstructorOptions]),
     { label: 'Quit', click: () => app.quit() }
   ])
   tray.setContextMenu(menu)

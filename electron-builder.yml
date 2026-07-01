@@ -28,6 +28,21 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Snapline
+# Microsoft Store (MSIX/appx) target. Built only via `npm run dist:store`
+# (electron-builder --win appx). Identity values come from Partner Center >
+# Snapline > Product identity and must match exactly, or upload is rejected.
+# runFullTrust is included by default, so the packaged app keeps normal desktop
+# file access (needed for the user-chosen storage root). The Store signs the
+# package on submission, so no code-signing cert is needed here.
+appx:
+  identityName: JooQueirs.Snapline
+  publisher: CN=F2CF845A-49E5-4F4E-9C1B-9D37F878E661
+  publisherDisplayName: João Queirós
+  applicationId: Snapline
+  backgroundColor: "#0b0d12"
+  languages:
+    - en-US
+    - pt-PT
 # Auto-update feed. electron-builder writes the installer + latest.yml to GitHub
 # Releases on `npm run dist -- --publish always` (needs GH_TOKEN). The app reads
 # the same release via electron-updater. Confirm owner/repo match your GitHub.
