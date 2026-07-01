@@ -30,6 +30,11 @@ export function ensureRoot(): string | null {
 }
 
 export function projectDir(project: Project | null): string | null {
+  // A project may live at a custom absolute location, outside the storage root.
+  if (project?.customPath) {
+    if (!fs.existsSync(project.customPath)) fs.mkdirSync(project.customPath, { recursive: true })
+    return project.customPath
+  }
   const root = ensureRoot()
   if (!root) return null
   const dir = project ? path.join(root, project.folderName) : path.join(root, UNFILED_FOLDER)
@@ -165,6 +170,61 @@ export function indexFile(
     aiStatus: 'none'
   }
   return screenshot
+}
+
+// Save a recorded WebM video + its poster frame, and build a video Screenshot. The poster
+// and dimensions are computed in the renderer (nativeImage can't read WebM) and passed in.
+export function saveRecordedVideo(
+  webm: Buffer,
+  poster: Buffer | null,
+  meta: { width: number; height: number; durationMs: number },
+  ctx: SaveContext,
+  settings: Settings
+): Screenshot | null {
+  const dir = projectDir(ctx.project)
+  if (!dir) return null
+  const base = formatName(settings.namingPattern, ctx.project?.name ?? '', ctx.mode)
+  const filePath = uniqueFilePath(dir, base, '.webm')
+  fs.writeFileSync(filePath, webm)
+  const id = randomUUID()
+  let thumbPath: string | null = null
+  if (poster && poster.length > 0) {
+    try {
+      const out = path.join(thumbsDir(), `${id}.png`)
+      fs.writeFileSync(out, poster)
+      thumbPath = out
+    } catch (err) {
+      console.error('[storageFs] video poster write failed:', err)
+    }
+  }
+  let bytes = 0
+  try {
+    bytes = fs.statSync(filePath).size
+  } catch { /* ignore */ }
+  return {
+    id,
+    projectId: ctx.project ? ctx.project.id : null,
+    fileName: path.basename(filePath),
+    filePath,
+    thumbPath,
+    width: meta.width,
+    height: meta.height,
+    bytes,
+    createdAt: Date.now(),
+    captureMode: ctx.mode,
+    isVideo: true,
+    durationMs: meta.durationMs,
+    sourceApp: ctx.sourceApp ?? null,
+    sourceWindowTitle: ctx.sourceWindowTitle ?? null,
+    sourceUrl: ctx.sourceUrl ?? null,
+    favorite: false,
+    pinned: false,
+    tagIds: [],
+    ocrText: null,
+    aiName: null,
+    aiDescription: null,
+    aiStatus: 'none'
+  }
 }
 
 // Copy external files into a project folder and index them.

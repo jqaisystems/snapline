@@ -35,7 +35,8 @@ export default defineConfig({
           overlay: resolve(__dirname, 'src/renderer/overlay.html'),
           editor: resolve(__dirname, 'src/renderer/editor.html'),
           pin: resolve(__dirname, 'src/renderer/pin.html'),
-          scrollctl: resolve(__dirname, 'src/renderer/scrollctl.html')
+          scrollctl: resolve(__dirname, 'src/renderer/scrollctl.html'),
+          recordctl: resolve(__dirname, 'src/renderer/recordctl.html')
         }
       }
     }

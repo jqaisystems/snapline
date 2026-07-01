@@ -1,10 +1,10 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, screen, shell } from 'electron'
 import path from 'path'
 import type { Rect } from '../shared/types'
 
 const preloadPath = path.join(__dirname, '../preload/index.js')
 
-type Page = 'library' | 'overlay' | 'editor' | 'pin' | 'scrollctl'
+type Page = 'library' | 'overlay' | 'editor' | 'pin' | 'scrollctl' | 'recordctl'
 
 function loadPage(win: BrowserWindow, page: Page, params: Record<string, string> = {}): void {
   const query = new URLSearchParams({ window: page, ...params }).toString()
@@ -19,7 +19,8 @@ function loadPage(win: BrowserWindow, page: Page, params: Record<string, string>
 }
 
 let libraryWindow: BrowserWindow | null = null
-let overlayWindow: BrowserWindow | null = null
+// One overlay window per monitor (region capture dims every screen at once).
+let overlayWindows: BrowserWindow[] = []
 let editorWindow: BrowserWindow | null = null
 const pinWindows = new Set<BrowserWindow>()
 
@@ -57,9 +58,11 @@ export function showLibraryWindow(): BrowserWindow {
   return libraryWindow
 }
 
+// Create one overlay window. Region capture calls this once per monitor (each window is
+// positioned on, and sized to, a single display so its DPI is unambiguous); window/scroll
+// capture call it once. Windows are tracked together and torn down by closeOverlayWindow().
 export function createOverlayWindow(bounds: Rect): BrowserWindow {
-  closeOverlayWindow()
-  overlayWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     x: bounds.x,
     y: bounds.y,
     width: bounds.width,
@@ -76,22 +79,25 @@ export function createOverlayWindow(bounds: Rect): BrowserWindow {
     enableLargerThanScreen: true,
     webPreferences: { preload: preloadPath, sandbox: false }
   })
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  overlayWindow.setVisibleOnAllWorkspaces(true)
-  overlayWindow.on('closed', () => {
-    overlayWindow = null
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setVisibleOnAllWorkspaces(true)
+  win.on('closed', () => {
+    overlayWindows = overlayWindows.filter((w) => w !== win)
   })
-  loadPage(overlayWindow, 'overlay')
-  overlayWindow.once('ready-to-show', () => {
-    overlayWindow?.show()
-    overlayWindow?.focus()
+  overlayWindows.push(win)
+  loadPage(win, 'overlay')
+  win.once('ready-to-show', () => {
+    win.show()
+    win.focus()
   })
-  return overlayWindow
+  return win
 }
 
 export function closeOverlayWindow(): void {
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close()
-  overlayWindow = null
+  for (const w of overlayWindows.slice()) {
+    if (!w.isDestroyed()) w.close()
+  }
+  overlayWindows = []
 }
 
 export function createEditorWindow(screenshotId: string): BrowserWindow {
@@ -186,6 +192,47 @@ export function createScrollControlWindow(display: Electron.Display, rect: Rect)
 export function closeScrollControlWindow(): void {
   if (scrollControlWindow && !scrollControlWindow.isDestroyed()) scrollControlWindow.close()
   scrollControlWindow = null
+}
+
+let recordControlWindow: BrowserWindow | null = null
+
+// Floating control bar that also runs the MediaRecorder. backgroundThrottling is disabled so
+// recording isn't throttled while the bar is unfocused.
+export function createRecordControlWindow(): BrowserWindow {
+  closeRecordControlWindow()
+  const b = screen.getPrimaryDisplay().bounds
+  const W = 320
+  const H = 64
+  const x = b.x + Math.round((b.width - W) / 2)
+  const y = b.y + b.height - H - 24
+  recordControlWindow = new BrowserWindow({
+    x,
+    y,
+    width: W,
+    height: H,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    hasShadow: true,
+    resizable: false,
+    movable: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    fullscreenable: false,
+    webPreferences: { preload: preloadPath, sandbox: false, backgroundThrottling: false }
+  })
+  recordControlWindow.setAlwaysOnTop(true, 'screen-saver')
+  recordControlWindow.on('closed', () => {
+    recordControlWindow = null
+  })
+  loadPage(recordControlWindow, 'recordctl')
+  recordControlWindow.once('ready-to-show', () => recordControlWindow?.show())
+  return recordControlWindow
+}
+
+export function closeRecordControlWindow(): void {
+  if (recordControlWindow && !recordControlWindow.isDestroyed()) recordControlWindow.close()
+  recordControlWindow = null
 }
 
 export function broadcastToAll(channel: string, payload: unknown): void {

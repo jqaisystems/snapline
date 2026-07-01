@@ -34,11 +34,13 @@ const api: SnaplineApi = {
   clearApiKey: () => ipcRenderer.invoke('clearApiKey'),
   testApiKey: () => ipcRenderer.invoke('testApiKey'),
   chooseStorageRoot: () => ipcRenderer.invoke('chooseStorageRoot'),
+  chooseDirectory: () => ipcRenderer.invoke('chooseDirectory'),
   completeOnboarding: (payload) => ipcRenderer.invoke('completeOnboarding', payload),
 
   createProject: (input) => ipcRenderer.invoke('createProject', input),
   updateProject: (id, patch: Partial<Project>) => ipcRenderer.invoke('updateProject', id, patch),
   deleteProject: (id, opts) => ipcRenderer.invoke('deleteProject', id, opts),
+  moveProjectLocation: (id, newParentDir) => ipcRenderer.invoke('moveProjectLocation', id, newParentDir),
   setActiveProject: (id) => ipcRenderer.invoke('setActiveProject', id),
   openProjectFolder: (id) => ipcRenderer.invoke('openProjectFolder', id),
   getProjectPalette: (projectId) => ipcRenderer.invoke('getProjectPalette', projectId),
@@ -56,6 +58,11 @@ const api: SnaplineApi = {
     ipcRenderer.on('scrollStatus', handler)
     return () => ipcRenderer.removeListener('scrollStatus', handler)
   },
+
+  startRecording: (mode) => ipcRenderer.invoke('startRecording', mode),
+  getRecordConfig: () => ipcRenderer.invoke('getRecordConfig'),
+  finishRecording: (payload) => ipcRenderer.invoke('finishRecording', payload),
+  cancelRecording: () => ipcRenderer.invoke('cancelRecording'),
 
   moveScreenshot: (id, projectId) => ipcRenderer.invoke('moveScreenshot', id, projectId),
   setScreenshotTags: (id, tagIds: string[]) => ipcRenderer.invoke('setScreenshotTags', id, tagIds),

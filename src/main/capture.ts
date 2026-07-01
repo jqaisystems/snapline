@@ -1,19 +1,53 @@
 import { desktopCapturer, screen, nativeImage } from 'electron'
-import type { Display, NativeImage } from 'electron'
+import type { Display, NativeImage, WebContents } from 'electron'
 import type { OverlayData, OverlayResult, Rect } from '../shared/types'
 import { createOverlayWindow, closeOverlayWindow } from './windows'
 
-let pendingOverlay: { data: OverlayData; resolve: (r: OverlayResult) => void } | null = null
+// One entry per open overlay window. Region capture opens one window per monitor; window
+// capture opens a single window on the cursor's display. Each window is matched to its
+// entry by the submitting window's webContents id.
+interface OverlayEntry {
+  wcId: number
+  data: OverlayData
+  display: Display
+  img: NativeImage | null // the captured display image (region only); used for cropping
+}
+type Resolved =
+  | { kind: 'region'; display: Display; img: NativeImage; rect: Rect }
+  | { kind: 'window'; sourceId: string }
+  | null
 
-export function getOverlayData(): OverlayData | null {
-  return pendingOverlay?.data ?? null
+let pending: { entries: OverlayEntry[]; resolve: (r: Resolved) => void; done: boolean; timer: ReturnType<typeof setTimeout> | null } | null = null
+
+// Tear down the pending overlay session exactly once and hand the result back.
+function settle(resolved: Resolved): void {
+  if (!pending || pending.done) return
+  pending.done = true
+  if (pending.timer) clearTimeout(pending.timer)
+  const resolve = pending.resolve
+  pending = null
+  closeOverlayWindow()
+  resolve(resolved)
 }
 
-export function resolveOverlay(result: OverlayResult): void {
-  const p = pendingOverlay
-  pendingOverlay = null
-  closeOverlayWindow()
-  p?.resolve(result)
+// Each overlay window asks for its own data, identified by its webContents.
+export function getOverlayData(sender: WebContents): OverlayData | null {
+  if (!pending) return null
+  return pending.entries.find((e) => e.wcId === sender.id)?.data ?? null
+}
+
+// A submit from any overlay window ends the whole session. A region rect crops that
+// window's display; a null/empty submit (Esc, or a click with no drag) cancels.
+export function resolveOverlay(sender: WebContents, result: OverlayResult): void {
+  if (!pending || pending.done) return
+  const entry = pending.entries.find((e) => e.wcId === sender.id)
+  let resolved: Resolved = null
+  if (result.kind === 'region' && result.rect && entry?.img) {
+    resolved = { kind: 'region', display: entry.display, img: entry.img, rect: result.rect }
+  } else if (result.kind === 'window' && result.sourceId) {
+    resolved = { kind: 'window', sourceId: result.sourceId }
+  }
+  settle(resolved)
 }
 
 async function captureDisplayImage(display: Display): Promise<NativeImage> {
@@ -55,35 +89,80 @@ export async function grabDisplay(display: Display): Promise<NativeImage> {
   return captureDisplayImage(display)
 }
 
-// Let the user select a region; returns the rect (CSS px within the display) + the display.
-export async function selectRegion(): Promise<{ display: Display; rect: Rect } | null> {
+// The desktopCapturer screen source id for the display under the cursor, for MediaRecorder
+// (chromeMediaSourceId). Returns null if no screen source is available.
+export async function getDisplaySourceIdUnderCursor(): Promise<string | null> {
   const display = displayUnderCursor()
-  const img = await captureDisplayImage(display)
-  if (img.isEmpty()) return null
-  const data: OverlayData = {
-    kind: 'region',
-    dataUrl: img.toDataURL(),
-    bounds: display.bounds,
-    scaleFactor: display.scaleFactor || 1
-  }
-  const result = await openOverlay(data, display.bounds)
-  if (result.kind !== 'region' || !result.rect) return null
-  return { display, rect: result.rect }
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })
+  const src =
+    sources.find((s) => s.display_id === String(display.id)) ??
+    sources.find((s) => s.id.includes(String(display.id))) ??
+    sources[0]
+  return src ? src.id : null
 }
 
-function openOverlay(data: OverlayData, bounds: Rect): Promise<OverlayResult> {
-  return new Promise((resolve) => {
-    pendingOverlay = { data, resolve }
-    createOverlayWindow(bounds)
-    setTimeout(() => {
-      if (pendingOverlay) {
-        const p = pendingOverlay
-        pendingOverlay = null
-        closeOverlayWindow()
-        p.resolve(data.kind === 'region' ? { kind: 'region', rect: null } : { kind: 'window', sourceId: null })
+// Show the window picker overlay and return the chosen window's source id (or null).
+export async function pickWindowSourceId(): Promise<string | null> {
+  const sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: maxNativeSize() })
+  const windows = sources
+    .filter((s) => s.name && !/snapline/i.test(s.name) && !s.thumbnail.isEmpty())
+    .map((s) => ({ id: s.id, name: s.name, dataUrl: s.thumbnail.toDataURL() }))
+  if (windows.length === 0) return null
+  const display = displayUnderCursor()
+  const result = await openWindowOverlay({ kind: 'window', windows }, display)
+  if (!result || result.kind !== 'window') return null
+  return result.sourceId
+}
+
+// Dim every monitor at once and let the user drag a selection on whichever one they are
+// working on. One overlay window per display (each matched to its own DPI), so the region
+// renderer and crop math stay per-display. Resolves with the chosen display + local rect.
+async function openRegionOverlays(): Promise<Resolved> {
+  if (pending) return null // an overlay session is already open; ignore re-triggers
+  const displays = screen.getAllDisplays()
+  const captured = await Promise.all(
+    displays.map(async (display) => ({ display, img: await captureDisplayImage(display) }))
+  )
+  const usable = captured.filter((c) => !c.img.isEmpty())
+  if (usable.length === 0) return null
+  return new Promise<Resolved>((resolve) => {
+    const entries: OverlayEntry[] = []
+    pending = { entries, resolve, done: false, timer: null }
+    for (const { display, img } of usable) {
+      const data: OverlayData = {
+        kind: 'region',
+        dataUrl: img.toDataURL(),
+        bounds: display.bounds,
+        scaleFactor: display.scaleFactor || 1
       }
-    }, 90000)
+      const win = createOverlayWindow(display.bounds)
+      entries.push({ wcId: win.webContents.id, data, display, img })
+    }
+    pending.timer = setTimeout(() => settle(null), 90000)
   })
+}
+
+// Single overlay (on the cursor's display) for the window picker.
+function openWindowOverlay(data: OverlayData, display: Display): Promise<Resolved> {
+  if (pending) return Promise.resolve(null) // an overlay session is already open
+  return new Promise<Resolved>((resolve) => {
+    const win = createOverlayWindow(display.bounds)
+    pending = {
+      entries: [{ wcId: win.webContents.id, data, display, img: null }],
+      resolve,
+      done: false,
+      timer: null
+    }
+    pending.timer = setTimeout(() => settle(null), 90000)
+  })
+}
+
+// Let the user select a region on any monitor; returns the rect (CSS px within the chosen
+// display) + that display. Used by scrolling capture.
+export async function selectRegion(): Promise<{ display: Display; rect: Rect } | null> {
+  const r = await openRegionOverlays()
+  if (!r || r.kind !== 'region') return null
+  return { display: r.display, rect: r.rect }
 }
 
 export async function captureFullscreen(): Promise<Buffer | null> {
@@ -92,26 +171,17 @@ export async function captureFullscreen(): Promise<Buffer | null> {
 }
 
 export async function captureRegion(): Promise<Buffer | null> {
-  const display = displayUnderCursor()
-  const img = await captureDisplayImage(display)
-  if (img.isEmpty()) return null
-  const data: OverlayData = {
-    kind: 'region',
-    dataUrl: img.toDataURL(),
-    bounds: display.bounds,
-    scaleFactor: display.scaleFactor || 1
-  }
-  const result = await openOverlay(data, display.bounds)
-  if (result.kind !== 'region' || !result.rect) return null
-  const scale = display.scaleFactor || 1
+  const r = await openRegionOverlays()
+  if (!r || r.kind !== 'region') return null
+  const scale = r.display.scaleFactor || 1
   const crop = {
-    x: Math.max(0, Math.round(result.rect.x * scale)),
-    y: Math.max(0, Math.round(result.rect.y * scale)),
-    width: Math.round(result.rect.width * scale),
-    height: Math.round(result.rect.height * scale)
+    x: Math.max(0, Math.round(r.rect.x * scale)),
+    y: Math.max(0, Math.round(r.rect.y * scale)),
+    width: Math.round(r.rect.width * scale),
+    height: Math.round(r.rect.height * scale)
   }
   if (crop.width < 3 || crop.height < 3) return null
-  const cropped = img.crop(crop)
+  const cropped = r.img.crop(crop)
   return cropped.isEmpty() ? null : cropped.toPNG()
 }
 
@@ -125,8 +195,8 @@ export async function captureWindow(): Promise<Buffer | null> {
     .map((s) => ({ id: s.id, name: s.name, dataUrl: s.thumbnail.toDataURL() }))
   if (windows.length === 0) return null
   const display = displayUnderCursor()
-  const result = await openOverlay({ kind: 'window', windows }, display.bounds)
-  if (result.kind !== 'window' || !result.sourceId) return null
+  const result = await openWindowOverlay({ kind: 'window', windows }, display)
+  if (!result || result.kind !== 'window') return null
   const chosen = sources.find((s) => s.id === result.sourceId)
   if (!chosen || chosen.thumbnail.isEmpty()) return null
   return chosen.thumbnail.toPNG()

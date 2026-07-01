@@ -33,6 +33,7 @@ export async function enrichOne(id: string): Promise<Screenshot | undefined> {
   const store = getStore()
   let s = store.getScreenshot(id)
   if (!s) return undefined
+  if (s.isVideo) return s // OCR/AI enrichment doesn't apply to video recordings
   const settings = store.getSettings()
   const willUseAi = settings.aiEnabled && aiReady()
 

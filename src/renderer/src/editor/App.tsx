@@ -9,6 +9,24 @@ import './editor.css'
 
 type Tool = 'select' | 'arrow' | 'rect' | 'ellipse' | 'line' | 'pen' | 'text' | 'highlight' | 'number' | 'redact' | 'eraser' | 'pick' | 'measure'
 
+type MeasureUnit = 'px' | 'cm' | 'mm' | 'in'
+
+// Format a pixel distance into the chosen unit. dpi is pixels-per-inch (96 = CSS standard);
+// physical units are derived from px via the dpi, so they are only as accurate as the dpi set.
+function formatMeasure(distPx: number, unit: MeasureUnit, dpi: number): string {
+  const d = dpi > 0 ? dpi : 96
+  switch (unit) {
+    case 'in':
+      return `${(distPx / d).toFixed(2)} in`
+    case 'cm':
+      return `${((distPx / d) * 2.54).toFixed(2)} cm`
+    case 'mm':
+      return `${((distPx / d) * 25.4).toFixed(1)} mm`
+    default:
+      return `${Math.round(distPx)} px`
+  }
+}
+
 interface Shape {
   id: string
   tool: Tool
@@ -166,6 +184,9 @@ export default function App(): React.ReactElement | null {
   const [picks, setPicks] = useState<string[]>([])
   // measure tool: multiply on-screen pixel distance (e.g. 0.5 for a 2x retina capture)
   const [measureScale, setMeasureScale] = useState(1)
+  // measure tool: output unit + the DPI used to convert px into physical units (96 = CSS standard)
+  const [measureUnit, setMeasureUnit] = useState<'px' | 'cm' | 'mm' | 'in'>('px')
+  const [measureDpi, setMeasureDpi] = useState(96)
 
   const [shapes, setShapesRaw] = useState<Shape[]>([])
   const [draft, setDraft] = useState<Shape | null>(null)
@@ -920,8 +941,8 @@ export default function App(): React.ReactElement | null {
         const tick = Math.max(6, (sh.width ?? 2) * 3)
         const tx = Math.cos(ang + Math.PI / 2) * tick
         const ty = Math.sin(ang + Math.PI / 2) * tick
-        const label = `${Math.round(dist)} px`
-        const fs = 13
+        const label = formatMeasure(dist, measureUnit, measureDpi)
+        const fs = 22
         const lw = label.length * fs * 0.62 + 12
         const lh = fs + 7
         const sw = sh.width ?? 2
@@ -1225,6 +1246,27 @@ export default function App(): React.ReactElement | null {
                 </button>
               ))}
             </div>
+            <div className="lbl-row" style={{ marginTop: 10 }}>{t('editor.measureUnits')}</div>
+            <div className="seg">
+              {(['px', 'cm', 'mm', 'in'] as const).map((u) => (
+                <button key={u} className={measureUnit === u ? 'active' : ''} onClick={() => setMeasureUnit(u)}>
+                  {u}
+                </button>
+              ))}
+            </div>
+            {measureUnit !== 'px' && (
+              <div style={{ marginTop: 8 }}>
+                <div className="lbl-row">{t('editor.measureDpi')}</div>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={measureDpi}
+                  onChange={(e) => setMeasureDpi(Math.max(1, Number(e.target.value) || 96))}
+                />
+              </div>
+            )}
             <div className="small muted" style={{ marginTop: 6 }}>
               {t('editor.measureHint')}
             </div>

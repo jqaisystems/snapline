@@ -36,6 +36,7 @@ function RegionPicker({ dataUrl }: { dataUrl: string }): React.ReactElement {
   const [cur, setCur] = useState<Pt | null>(null)
   const [hover, setHover] = useState<Pt | null>(null)
   const dragging = useRef(false)
+  const startRef = useRef<Pt | null>(null) // live drag origin, never lags a render
   const imgRef = useRef<HTMLImageElement>(null)
   const loupeRef = useRef<HTMLCanvasElement>(null)
 
@@ -51,20 +52,35 @@ function RegionPicker({ dataUrl }: { dataUrl: string }): React.ReactElement {
 
   function down(e: React.MouseEvent): void {
     dragging.current = true
-    setStart({ x: e.clientX, y: e.clientY })
-    setCur({ x: e.clientX, y: e.clientY })
+    const p = { x: e.clientX, y: e.clientY }
+    startRef.current = p
+    setStart(p)
+    setCur(p)
   }
   function move(e: React.MouseEvent): void {
     setHover({ x: e.clientX, y: e.clientY })
     if (dragging.current) setCur({ x: e.clientX, y: e.clientY })
   }
-  function up(): void {
+  // Decide from the live drag origin + the release point, not from React-committed
+  // state. The per-move loupe redraw makes renders heavy, so `cur` can lag the final
+  // mouseup; reading committed state here intermittently saw a 0-size rect and dropped
+  // the capture. Live coords remove that race.
+  function finish(end: Pt | null): void {
+    if (!dragging.current) return
     dragging.current = false
-    if (rect && rect.width > 4 && rect.height > 4) {
-      api.submitOverlay({ kind: 'region', rect })
+    const s = startRef.current
+    const r =
+      s && end
+        ? { x: Math.min(s.x, end.x), y: Math.min(s.y, end.y), width: Math.abs(end.x - s.x), height: Math.abs(end.y - s.y) }
+        : null
+    if (r && r.width > 4 && r.height > 4) {
+      api.submitOverlay({ kind: 'region', rect: r })
     } else {
       api.submitOverlay({ kind: 'region', rect: null })
     }
+  }
+  function up(e: React.MouseEvent): void {
+    finish({ x: e.clientX, y: e.clientY })
   }
 
   // map a client point to source-capture pixels (the image is stretched to fill the viewport)
@@ -95,6 +111,17 @@ function RegionPicker({ dataUrl }: { dataUrl: string }): React.ReactElement {
     ctx.moveTo(0, LOUPE_D / 2); ctx.lineTo(LOUPE_D, LOUPE_D / 2)
     ctx.stroke()
   }, [hover])
+
+  // Safety net: if the mouse is released outside the overlay div, the React onMouseUp
+  // never fires and the capture would hang until the 90s timeout. A window listener
+  // finalizes from the native release point. finish() guards on dragging so the div
+  // handler and this one can't double-submit. No deps: re-register each render so it
+  // always closes over the latest finish.
+  useEffect(() => {
+    const onUp = (e: MouseEvent): void => finish({ x: e.clientX, y: e.clientY })
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
+  })
 
   // keep the loupe near the cursor but flip away from screen edges
   const lx = hover ? (hover.x + 20 + LOUPE_D > window.innerWidth ? hover.x - 20 - LOUPE_D : hover.x + 20) : 0

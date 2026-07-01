@@ -36,11 +36,13 @@ function defaultSettings(): Settings {
     aiAutoDescribe: true,
     aiSuggestProject: true,
     ocrEnabled: true,
+    recordingMicId: '',
     hotkeys: {
       region: 'Control+Shift+1',
       window: 'Control+Shift+2',
       fullscreen: 'Control+Shift+3',
-      delayed: 'Control+Shift+4'
+      delayed: 'Control+Shift+4',
+      record: 'Control+Shift+R'
     },
     brandColors: ['#0f172a', '#6366f1', '#f8fafc'],
     customColors: [],
@@ -77,8 +79,16 @@ class Store {
     try {
       if (!fs.existsSync(p)) return null
       const raw = JSON.parse(fs.readFileSync(p, 'utf-8'))
+      const defs = defaultSettings()
       return {
-        settings: { ...defaultSettings(), ...raw.settings, hasApiKey: false },
+        settings: {
+          ...defs,
+          ...raw.settings,
+          hasApiKey: false,
+          // hotkeys is a nested object: a shallow spread of raw.settings would replace it
+          // wholesale and drop any newly-added defaults (e.g. `record`) for existing users.
+          hotkeys: { ...defs.hotkeys, ...(raw.settings?.hotkeys ?? {}) }
+        },
         projects: raw.projects ?? [],
         tags: raw.tags ?? [],
         screenshots: raw.screenshots ?? [],
@@ -202,13 +212,14 @@ class Store {
     return this.db.projects.find((p) => p.id === id)
   }
 
-  createProject(input: { name: string; color?: string; icon?: string; folderName: string }): Project {
+  createProject(input: { name: string; color?: string; icon?: string; folderName: string; customPath?: string | null }): Project {
     const project: Project = {
       id: randomUUID(),
       name: input.name,
       color: input.color ?? randomColor(this.db.projects.length),
       icon: input.icon ?? 'folder',
       folderName: input.folderName,
+      customPath: input.customPath ?? null,
       createdAt: Date.now(),
       archived: false,
       sortOrder: this.db.projects.length
@@ -216,6 +227,18 @@ class Store {
     this.db.projects.push(project)
     this.persist()
     return project
+  }
+
+  // Trusted: set the on-disk location of a project. folderName and customPath feed
+  // filesystem paths, so they are never patchable via updateProject; this is called
+  // only from main-process handlers (project relocation), never from a renderer patch.
+  setProjectLocation(id: string, loc: { folderName: string; customPath: string | null }): Project | undefined {
+    const p = this.db.projects.find((x) => x.id === id)
+    if (!p) return undefined
+    p.folderName = loc.folderName
+    p.customPath = loc.customPath
+    this.persist()
+    return p
   }
 
   updateProject(id: string, patch: Partial<Project>): Project | undefined {

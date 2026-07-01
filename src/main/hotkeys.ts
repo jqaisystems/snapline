@@ -1,6 +1,7 @@
 import { globalShortcut } from 'electron'
 import { getStore } from './store'
 import { performCapture } from './captureFlow'
+import { startRecording } from './recorder'
 import { toast } from './broadcast'
 
 export function registerHotkeys(): void {
@@ -24,6 +25,7 @@ export function registerHotkeys(): void {
     toast('Capturing full screen in 3s…')
     void performCapture({ mode: 'fullscreen', delayMs: 3000 })
   })
+  bind(hotkeys.record, () => void startRecording('screen'))
 }
 
 export function unregisterHotkeys(): void {

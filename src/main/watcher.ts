@@ -9,8 +9,14 @@ import { queueEnrichment } from './pipeline'
 
 let watcher: FSWatcher | null = null
 
-// Map a file's on-disk location to a project id (folder name == project.folderName), or null (Unfiled).
+// Map a file's on-disk location to a project id, or null (Unfiled). A file under a
+// project's custom location wins; otherwise fall back to the storage-root folder name.
 function projectIdForPath(root: string, filePath: string): string | null {
+  const resolved = path.resolve(filePath)
+  const custom = getStore()
+    .getProjects()
+    .find((p) => p.customPath && resolved.startsWith(path.resolve(p.customPath) + path.sep))
+  if (custom) return custom.id
   const rel = path.relative(root, filePath)
   const segments = rel.split(path.sep)
   if (segments.length < 2) return null // file directly in root → Unfiled
@@ -55,7 +61,13 @@ export function startWatcher(): void {
   stopWatcher()
   const root = getStore().getSettings().storageRoot
   if (!root || !fs.existsSync(root)) return
-  watcher = chokidar.watch(root, {
+  // Watch the storage root plus every project's custom location (deduped, existing only).
+  const customPaths = getStore()
+    .getProjects()
+    .map((p) => p.customPath)
+    .filter((p): p is string => !!p && fs.existsSync(p) && path.resolve(p) !== path.resolve(root))
+  const watchTargets = [root, ...Array.from(new Set(customPaths.map((p) => path.resolve(p))))]
+  watcher = chokidar.watch(watchTargets, {
     ignoreInitial: false,
     depth: 4,
     ignored: /(^|[\\/])\../, // dotfiles

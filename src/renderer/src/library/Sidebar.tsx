@@ -12,10 +12,11 @@ interface Props {
   onNewProject: () => void
   onRenameProject: (p: Project) => void
   onDeleteProject: (p: Project) => void
+  onMoveProject: (p: Project) => void
   onOpenSettings: () => void
 }
 
-export default function Sidebar({ snap, view, onView, onNewProject, onRenameProject, onDeleteProject, onOpenSettings }: Props): React.ReactElement {
+export default function Sidebar({ snap, view, onView, onNewProject, onRenameProject, onDeleteProject, onMoveProject, onOpenSettings }: Props): React.ReactElement {
   const [menu, setMenu] = useState<{ x: number; y: number; project: Project } | null>(null)
   const [dropId, setDropId] = useState<string | 'unfiled' | null>(null)
 
@@ -51,8 +52,24 @@ export default function Sidebar({ snap, view, onView, onNewProject, onRenameProj
           onClick={() => onView({ type: 'all' })}
         >
           <Icon name="layers" size={17} />
-          <span>{t('nav.allScreenshots')}</span>
+          <span>{t('nav.everything')}</span>
           <span className="count">{shots.length}</span>
+        </div>
+        <div
+          className={`nav-item ${isActiveView({ type: 'screenshots' }) ? 'active' : ''}`}
+          onClick={() => onView({ type: 'screenshots' })}
+        >
+          <Icon name="image" size={17} />
+          <span>{t('nav.screenshots')}</span>
+          <span className="count">{shots.filter((s) => !s.isVideo).length}</span>
+        </div>
+        <div
+          className={`nav-item ${isActiveView({ type: 'videos' }) ? 'active' : ''}`}
+          onClick={() => onView({ type: 'videos' })}
+        >
+          <Icon name="play" size={17} />
+          <span>{t('nav.videos')}</span>
+          <span className="count">{shots.filter((s) => s.isVideo).length}</span>
         </div>
         <div
           className={`nav-item ${isActiveView({ type: 'unfiled' }) ? 'active' : ''} ${dropId === 'unfiled' ? 'drop-target' : ''}`}
@@ -169,6 +186,15 @@ export default function Sidebar({ snap, view, onView, onNewProject, onRenameProj
             }}
           >
             <Icon name="reveal" size={15} /> {t('nav.openFolder')}
+          </div>
+          <div
+            className="menu-item"
+            onClick={() => {
+              onMoveProject(menu.project)
+              setMenu(null)
+            }}
+          >
+            <Icon name="folder" size={15} /> {t('nav.moveLocation')}
           </div>
           <div
             className="menu-item"

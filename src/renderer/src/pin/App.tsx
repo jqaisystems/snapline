@@ -75,14 +75,23 @@ export default function App(): React.ReactElement | null {
         onDoubleClick={resetZoom}
         style={{ WebkitAppRegion: zoomed ? 'no-drag' : 'drag' } as React.CSSProperties}
       >
-        <img
-          className="pin-img"
-          ref={imgRef}
-          src={api.fileUrl(shot.filePath)}
-          alt=""
-          draggable={false}
-          style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
-        />
+        {shot.isVideo ? (
+          <video
+            className="pin-img"
+            controls
+            src={api.fileUrl(shot.filePath)}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          />
+        ) : (
+          <img
+            className="pin-img"
+            ref={imgRef}
+            src={api.fileUrl(shot.filePath)}
+            alt=""
+            draggable={false}
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0' }}
+          />
+        )}
       </div>
       <div className="pin-bar">
         <span className="pin-name">{shot.aiName ?? shot.fileName}</span>

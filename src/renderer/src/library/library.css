@@ -582,3 +582,23 @@
 .menu-item.danger {
   color: var(--danger-text);
 }
+.menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 5px 6px;
+}
+.video-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #fff;
+}
+.video-play svg {
+  background: rgba(10, 12, 17, 0.55);
+  border-radius: 50%;
+  padding: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}

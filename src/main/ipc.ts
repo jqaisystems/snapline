@@ -19,6 +19,7 @@ import { trashById, restoreById, deletePermanentlyById, emptyTrash } from './tra
 import { performCapture } from './captureFlow'
 import { getProjectPalette } from './palette'
 import { startScrollCapture, finishScrollCapture, cancelScrollCapture } from './scrollCapture'
+import { startRecording, getRecordConfig, finishRecording, cancelRecording } from './recorder'
 import { enrichOne, queueEnrichment } from './pipeline'
 import { detectPii as aiDetectPii, testApiKey as aiTestKey } from './ai'
 import { broadcastSnapshot, reindexAll, toast } from './broadcast'
@@ -55,6 +56,8 @@ function runSearch(q: SearchQuery): string[] {
   if (q.projectId !== undefined) list = list.filter((s) => s.projectId === q.projectId)
   if (q.tagId) list = list.filter((s) => s.tagIds.includes(q.tagId!))
   if (q.favorite) list = list.filter((s) => s.favorite)
+  if (q.media === 'video') list = list.filter((s) => s.isVideo)
+  else if (q.media === 'image') list = list.filter((s) => !s.isVideo)
   if (q.mode) list = list.filter((s) => s.captureMode === q.mode)
   if (q.fromDate) list = list.filter((s) => s.createdAt >= q.fromDate!)
   if (q.toDate) list = list.filter((s) => s.createdAt <= q.toDate!)
@@ -136,6 +139,14 @@ export function registerIpc(): void {
     if (res.canceled || res.filePaths.length === 0) return null
     return res.filePaths[0]
   })
+  ipcMain.handle('chooseDirectory', async () => {
+    const res = await dialog.showOpenDialog({
+      title: 'Choose a folder',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (res.canceled || res.filePaths.length === 0) return null
+    return res.filePaths[0]
+  })
   ipcMain.handle('completeOnboarding', (_e, payload: { storageRoot: string }) => {
     store.updateSettings({ storageRoot: payload.storageRoot, onboarded: true })
     ensureRoot()
@@ -146,11 +157,26 @@ export function registerIpc(): void {
   })
 
   // ---- projects ----
-  ipcMain.handle('createProject', (_e, input: { name: string; color?: string; icon?: string }) => {
+  ipcMain.handle('createProject', (_e, input: { name: string; color?: string; icon?: string; location?: string }) => {
+    const { location, ...rest } = input
+    // Custom location: create the project's folder under the chosen parent dir instead
+    // of the global storage root. Validate the parent is a real absolute directory.
+    if (location && path.isAbsolute(location) && fs.existsSync(location)) {
+      const folderName = uniqueFolderName(location, input.name)
+      const customPath = path.join(location, folderName)
+      const project = store.createProject({ ...rest, folderName, customPath })
+      projectDir(project) // create folder on disk
+      store.updateSettings({ activeProjectId: project.id }) // file new captures here right away
+      startWatcher() // watch the new custom location so external drops sync
+      buildTrayMenu()
+      broadcastSnapshot()
+      return project
+    }
     const root = ensureRoot()
     const folderName = root ? uniqueFolderName(root, input.name) : input.name
-    const project = store.createProject({ ...input, folderName })
+    const project = store.createProject({ ...rest, folderName })
     projectDir(project) // create folder on disk
+    store.updateSettings({ activeProjectId: project.id }) // file new captures here right away
     buildTrayMenu()
     broadcastSnapshot()
     return project
@@ -172,7 +198,27 @@ export function registerIpc(): void {
         getSearch().remove(s.id)
       }
       const root = store.getSettings().storageRoot
-      if (project && root) {
+      if (project?.customPath) {
+        // Custom location: delete the project's own folder. Allow only an absolute path
+        // whose parent is not itself (i.e. not a drive root), that exists, and whose final
+        // segment matches the project's folderName (it is always an app-created
+        // parent/<folderName> subfolder, so this ties deletion to the known folder).
+        const target = path.resolve(project.customPath)
+        const safe =
+          path.isAbsolute(target) &&
+          path.dirname(target) !== target &&
+          path.basename(target) === project.folderName &&
+          fs.existsSync(target)
+        if (safe) {
+          try {
+            fs.rmSync(target, { recursive: true, force: true })
+          } catch (err) {
+            console.error('[ipc] delete project folder failed:', err)
+          }
+        } else {
+          console.error('[ipc] refused to delete unsafe custom project folder:', target)
+        }
+      } else if (project && root) {
         const target = path.resolve(root, project.folderName)
         const rootResolved = path.resolve(root)
         // Defense in depth: only ever recursively delete a folder that resolves to a
@@ -188,12 +234,61 @@ export function registerIpc(): void {
         }
       }
     }
+    const hadCustomPath = !!project?.customPath
     store.deleteProject(id)
     store.flush() // project folder/files removed on disk: persist now
+    if (hadCustomPath) startWatcher() // drop the removed custom path from the watch set
     buildTrayMenu()
     reindexAll()
     broadcastSnapshot()
     return { ok: true }
+  })
+  ipcMain.handle('moveProjectLocation', (_e, id: string, newParentDir: string) => {
+    const project = store.getProject(id)
+    if (!project) return { ok: false, moved: 0 }
+    if (!newParentDir || !path.isAbsolute(newParentDir) || !fs.existsSync(newParentDir)) {
+      return { ok: false, moved: 0 }
+    }
+    const oldDir = projectDir(project)
+    if (!oldDir) return { ok: false, moved: 0 }
+    // Refuse to nest a project inside its own current folder.
+    const newParentResolved = path.resolve(newParentDir)
+    if (newParentResolved === path.resolve(oldDir) || newParentResolved.startsWith(path.resolve(oldDir) + path.sep)) {
+      return { ok: false, moved: 0 }
+    }
+    // Keep the folder name unless it collides at the new parent.
+    const folderName = fs.existsSync(path.join(newParentDir, project.folderName))
+      ? uniqueFolderName(newParentDir, project.name)
+      : project.folderName
+    const newDir = path.join(newParentDir, folderName)
+    if (path.resolve(newDir) === path.resolve(oldDir)) return { ok: false, moved: 0 }
+    try {
+      fs.mkdirSync(newDir, { recursive: true })
+    } catch (err) {
+      console.error('[ipc] moveProjectLocation mkdir failed:', err)
+      return { ok: false, moved: 0 }
+    }
+    // Point the project at its new folder, then move each file through projectDir().
+    store.setProjectLocation(id, { folderName, customPath: newDir })
+    const updatedProject = store.getProject(id)!
+    let moved = 0
+    for (const s of store.getScreenshots().filter((x) => x.projectId === id)) {
+      const newPath = moveScreenshotFile(s, updatedProject)
+      if (newPath !== s.filePath) moved++
+      const updated = store.updateScreenshot(s.id, { filePath: newPath, fileName: path.basename(newPath) })
+      if (updated) getSearch().update(updated, store.getProjects(), store.getTags())
+    }
+    // Remove the old folder only if it is now empty (never recurse: avoid nuking
+    // unrelated user files that may live alongside).
+    try {
+      fs.rmdirSync(oldDir)
+    } catch { /* not empty or already gone: leave it */ }
+    store.flush()
+    startWatcher() // re-watch with the new custom path
+    buildTrayMenu()
+    reindexAll()
+    broadcastSnapshot()
+    return { ok: true, moved }
   })
   ipcMain.handle('setActiveProject', (_e, id: string | null) => {
     const next = store.updateSettings({ activeProjectId: id })
@@ -306,6 +401,12 @@ export function registerIpc(): void {
   ipcMain.handle('startScrollCapture', () => startScrollCapture())
   ipcMain.handle('scrollDone', () => finishScrollCapture())
   ipcMain.handle('scrollCancel', () => cancelScrollCapture())
+
+  // ---- screen recording ----
+  ipcMain.handle('startRecording', (_e, mode: 'screen' | 'window') => startRecording(mode))
+  ipcMain.handle('getRecordConfig', () => getRecordConfig())
+  ipcMain.handle('finishRecording', (_e, payload: { webm: ArrayBuffer; posterDataUrl: string | null; width: number; height: number; durationMs: number }) => finishRecording(payload))
+  ipcMain.handle('cancelRecording', () => cancelRecording())
 
   // ---- screenshots ----
   ipcMain.handle('moveScreenshot', (_e, id: string, projectId: string | null) => {
@@ -442,9 +543,9 @@ export function registerIpc(): void {
   })
 
   // ---- overlay ----
-  ipcMain.handle('getOverlayData', () => getOverlayData())
-  ipcMain.handle('submitOverlay', (_e, result: OverlayResult) => {
-    resolveOverlay(result)
+  ipcMain.handle('getOverlayData', (e) => getOverlayData(e.sender))
+  ipcMain.handle('submitOverlay', (e, result: OverlayResult) => {
+    resolveOverlay(e.sender, result)
   })
 
   // ---- misc ----

@@ -6,6 +6,9 @@ import type { Dict } from './index'
 export const en: Dict = {
   // ---- view titles (state.ts viewTitle) ----
   'view.allScreenshots': 'All screenshots',
+  'view.everything': 'Everything',
+  'view.screenshots': 'Screenshots',
+  'view.videos': 'Videos',
   'view.unfiled': 'Unfiled',
   'view.favorites': 'Favorites',
   'view.project': 'Project',
@@ -13,6 +16,9 @@ export const en: Dict = {
 
   // ---- sidebar nav ----
   'nav.allScreenshots': 'All screenshots',
+  'nav.everything': 'Everything',
+  'nav.screenshots': 'Screenshots',
+  'nav.videos': 'Videos',
   'nav.unfiled': 'Unfiled',
   'nav.favorites': 'Favorites',
   'nav.projects': 'Projects',
@@ -23,6 +29,7 @@ export const en: Dict = {
   'nav.setActive': 'Set as active',
   'nav.openFolder': 'Open folder',
   'nav.rename': 'Rename',
+  'nav.moveLocation': 'Change location…',
   'nav.delete': 'Delete',
 
   // ---- grid cards ----
@@ -34,6 +41,16 @@ export const en: Dict = {
   'grid.selected': 'Selected',
   'grid.favorite': 'Favorite',
   'grid.analyzing': 'Analyzing…',
+  'grid.video': 'Video',
+
+  // ---- right-click context menu (Grid cards) ----
+  'ctx.openLocation': 'Open file location',
+  'ctx.openInEditor': 'Open in editor',
+  'ctx.copyImage': 'Copy image',
+  'ctx.pin': 'Pin',
+  'ctx.favorite': 'Favorite',
+  'ctx.unfavorite': 'Unfavorite',
+  'ctx.moveToTrash': 'Move to trash',
 
   // ---- onboarding ----
   'onboarding.featProjectTitle': 'Project-based capture',
@@ -93,6 +110,9 @@ export const en: Dict = {
   'app.captureWindow': 'Capture window',
   'app.captureFullScreen': 'Capture full screen',
   'app.scrollingCapture': 'Scrolling capture (long page)',
+  'app.record': 'Record screen',
+  'app.recordScreen': 'Record screen',
+  'app.recordWindow': 'Record a window',
   'app.searchPlaceholder': 'Search by name, text in image, tags…',
   'app.capturesSaveTo': 'Captures save to:\n{dir}',
   'app.activeProject': 'Active project',
@@ -137,6 +157,14 @@ export const en: Dict = {
   'app.color': 'Color',
   'app.create': 'Create',
   'app.save': 'Save',
+  'app.location': 'Location',
+  'app.locationDefault': 'Default (storage root)',
+  'app.chooseLocation': 'Choose…',
+  'app.createLocationHelp': 'Leave as default to save under your storage root, or choose any folder to keep this project there.',
+  'app.moveLocationTitle': 'Change location of "{name}"',
+  'app.moveLocationHelp': 'Pick a new folder. The project folder and its {n} file(s) are moved there on disk.',
+  'app.moveLocationConfirm': 'Move',
+  'app.locationMoved': 'Moved {n} file(s) to the new location',
   'app.deleteProjectTitle': 'Delete "{name}"?',
   'app.deleteProjectHelpFiles': 'The project folder and all its screenshots will be permanently deleted from disk.',
   'app.deleteProjectHelpKeep': 'The project is removed. Its screenshots become Unfiled but the files stay on disk.',
@@ -228,6 +256,10 @@ export const en: Dict = {
   'settings.hotkeyWindow': 'Window capture',
   'settings.hotkeyFullscreen': 'Full screen',
   'settings.hotkeyDelayed': 'Delayed (3s) full screen',
+  'settings.hotkeyRecord': 'Screen recording',
+  'settings.recordingMic': 'Recording microphone',
+  'settings.recordingMicDesc': 'Microphone used for screen recordings. "System default" follows your Windows input device.',
+  'settings.recordingMicDefault': 'System default',
   'settings.enableAi': 'Enable AI features',
   'settings.enableAiDesc': 'Auto-name, tag, describe and auto-file screenshots.',
   'settings.provider': 'Provider',
@@ -319,8 +351,10 @@ export const en: Dict = {
   'editor.value': 'Value',
   'editor.scalePxMultiplier': 'Scale (px multiplier)',
   'editor.scaleRetina': '0.5x (retina)',
+  'editor.measureUnits': 'Units',
+  'editor.measureDpi': 'DPI (pixels per inch)',
   'editor.measureHint':
-    'Drag across the image to read the distance in pixels. Use 0.5x for a 2x retina capture to get CSS pixels.',
+    'Drag across the image to read the distance. Use 0.5x for a 2x retina capture. For cm, mm or inches, set the DPI (96 is the standard screen value).',
   'editor.contrastWcag': 'Contrast (WCAG)',
   'editor.contrastPickHint':
     'Pick two colors with the pipette (e.g. text then its background) to check the contrast ratio.',

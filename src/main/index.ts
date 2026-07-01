@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, session } from 'electron'
 import { getStore } from './store'
 import { registerIpc } from './ipc'
 import { reindexAll } from './broadcast'
@@ -25,6 +25,14 @@ if (!gotLock) {
   app.whenReady().then(() => {
     app.setAppUserModelId('com.joaoqueiros.snapline')
     registerMediaProtocol()
+
+    // Allow the recordctl window's getUserMedia (desktop capture + microphone) to proceed.
+    // Chromium consults the synchronous check handler too; without it a media check can fail
+    // before the async request handler runs, silently denying the microphone.
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => {
+      cb(permission === 'media')
+    })
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media')
 
     // Surface renderer-side errors in the main process log (useful during dev walkthroughs).
     app.on('web-contents-created', (_e, contents) => {

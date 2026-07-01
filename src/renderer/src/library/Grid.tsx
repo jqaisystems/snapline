@@ -29,6 +29,7 @@ interface Props {
   focusedId: string | null
   onCardClick: (e: React.MouseEvent, id: string) => void
   onCardDouble: (id: string) => void
+  onCardContext: (e: React.MouseEvent, id: string) => void
   onCols: (cols: number) => void
   onDropFiles: (e: React.DragEvent) => void
   emptyHint: string
@@ -36,7 +37,7 @@ interface Props {
 
 // Virtualized, multi-select thumbnail grid. Only rows in view are rendered, so very large
 // libraries stay smooth.
-export default function Grid({ items, selectedIds, focusedId, onCardClick, onCardDouble, onCols, onDropFiles, emptyHint }: Props): React.ReactElement {
+export default function Grid({ items, selectedIds, focusedId, onCardClick, onCardDouble, onCardContext, onCols, onDropFiles, emptyHint }: Props): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [scrollTop, setScrollTop] = useState(0)
@@ -97,12 +98,19 @@ export default function Grid({ items, selectedIds, focusedId, onCardClick, onCar
               style={{ position: 'absolute', top, left, width: cardW, height: CARD_H }}
               onClick={(e) => onCardClick(e, s.id)}
               onDoubleClick={() => onCardDouble(s.id)}
+              onContextMenu={(e) => onCardContext(e, s.id)}
               draggable
               onDragStart={() => setDragId(s.id)}
               onDragEnd={() => setDragId(null)}
             >
               <div className="thumb">
-                <img src={`${api.fileUrl(s.thumbPath ?? s.filePath)}?v=${s.bytes}`} loading="lazy" alt="" />
+                {/* Video has a poster (thumbPath); an <img> can't render the .webm itself. */}
+                <img src={`${api.fileUrl(s.isVideo ? (s.thumbPath ?? '') : (s.thumbPath ?? s.filePath))}?v=${s.bytes}`} loading="lazy" alt="" />
+                {s.isVideo && (
+                  <div className="video-play" title={t('grid.video')}>
+                    <Icon name="play" size={26} />
+                  </div>
+                )}
                 <div className="badge">
                   {selectedIds.has(s.id) && (
                     <span title={t('grid.selected')} style={{ background: 'var(--accent)' }}>

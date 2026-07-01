@@ -6,6 +6,9 @@ import type { Dict } from './index'
 export const pt: Dict = {
   // ---- view titles ----
   'view.allScreenshots': 'Todas as capturas',
+  'view.everything': 'Tudo',
+  'view.screenshots': 'Capturas',
+  'view.videos': 'Vídeos',
   'view.unfiled': 'Por arquivar',
   'view.favorites': 'Favoritos',
   'view.project': 'Projeto',
@@ -13,6 +16,9 @@ export const pt: Dict = {
 
   // ---- sidebar nav ----
   'nav.allScreenshots': 'Todas as capturas',
+  'nav.everything': 'Tudo',
+  'nav.screenshots': 'Capturas',
+  'nav.videos': 'Vídeos',
   'nav.unfiled': 'Por arquivar',
   'nav.favorites': 'Favoritos',
   'nav.projects': 'Projetos',
@@ -23,6 +29,7 @@ export const pt: Dict = {
   'nav.setActive': 'Definir como ativo',
   'nav.openFolder': 'Abrir pasta',
   'nav.rename': 'Mudar o nome',
+  'nav.moveLocation': 'Mudar localização…',
   'nav.delete': 'Eliminar',
 
   // ---- grid cards ----
@@ -34,6 +41,16 @@ export const pt: Dict = {
   'grid.selected': 'Selecionada',
   'grid.favorite': 'Favorito',
   'grid.analyzing': 'A analisar…',
+  'grid.video': 'Vídeo',
+
+  // ---- right-click context menu (Grid cards) ----
+  'ctx.openLocation': 'Abrir localização do ficheiro',
+  'ctx.openInEditor': 'Abrir no editor',
+  'ctx.copyImage': 'Copiar imagem',
+  'ctx.pin': 'Fixar',
+  'ctx.favorite': 'Adicionar aos favoritos',
+  'ctx.unfavorite': 'Remover dos favoritos',
+  'ctx.moveToTrash': 'Mover para o lixo',
 
   // ---- onboarding ----
   'onboarding.featProjectTitle': 'Captura por projeto',
@@ -94,6 +111,9 @@ export const pt: Dict = {
   'app.captureWindow': 'Capturar janela',
   'app.captureFullScreen': 'Capturar ecrã inteiro',
   'app.scrollingCapture': 'Captura com deslocamento (página longa)',
+  'app.record': 'Gravar ecrã',
+  'app.recordScreen': 'Gravar ecrã',
+  'app.recordWindow': 'Gravar uma janela',
   'app.searchPlaceholder': 'Pesquisar por nome, texto na imagem, etiquetas…',
   'app.capturesSaveTo': 'As capturas são guardadas em:\n{dir}',
   'app.activeProject': 'Projeto ativo',
@@ -138,6 +158,14 @@ export const pt: Dict = {
   'app.color': 'Cor',
   'app.create': 'Criar',
   'app.save': 'Guardar',
+  'app.location': 'Localização',
+  'app.locationDefault': 'Predefinição (pasta de armazenamento)',
+  'app.chooseLocation': 'Escolher…',
+  'app.createLocationHelp': 'Deixe na predefinição para guardar na pasta de armazenamento, ou escolha qualquer pasta para manter este projeto aí.',
+  'app.moveLocationTitle': 'Mudar a localização de "{name}"',
+  'app.moveLocationHelp': 'Escolha uma nova pasta. A pasta do projeto e os seus {n} ficheiro(s) são movidos para lá no disco.',
+  'app.moveLocationConfirm': 'Mover',
+  'app.locationMoved': '{n} ficheiro(s) movido(s) para a nova localização',
   'app.deleteProjectTitle': 'Eliminar "{name}"?',
   'app.deleteProjectHelpFiles': 'A pasta do projeto e todas as suas capturas serão eliminadas permanentemente do disco.',
   'app.deleteProjectHelpKeep':
@@ -230,6 +258,10 @@ export const pt: Dict = {
   'settings.hotkeyWindow': 'Captura de janela',
   'settings.hotkeyFullscreen': 'Ecrã inteiro',
   'settings.hotkeyDelayed': 'Ecrã inteiro com atraso (3s)',
+  'settings.hotkeyRecord': 'Gravação de ecrã',
+  'settings.recordingMic': 'Microfone de gravação',
+  'settings.recordingMicDesc': 'Microfone usado nas gravações de ecrã. "Predefinição do sistema" segue o dispositivo de entrada do Windows.',
+  'settings.recordingMicDefault': 'Predefinição do sistema',
   'settings.enableAi': 'Ativar funcionalidades de IA',
   'settings.enableAiDesc': 'Nomear, etiquetar, descrever e arquivar capturas automaticamente.',
   'settings.provider': 'Fornecedor',
@@ -322,8 +354,10 @@ export const pt: Dict = {
   'editor.value': 'Valor',
   'editor.scalePxMultiplier': 'Escala (multiplicador de px)',
   'editor.scaleRetina': '0.5x (retina)',
+  'editor.measureUnits': 'Unidades',
+  'editor.measureDpi': 'DPI (píxeis por polegada)',
   'editor.measureHint':
-    'Arraste sobre a imagem para ler a distância em píxeis. Use 0.5x para uma captura retina 2x e obter píxeis CSS.',
+    'Arraste sobre a imagem para ler a distância. Use 0.5x para uma captura retina 2x. Para cm, mm ou polegadas, defina o DPI (96 é o valor padrão do ecrã).',
   'editor.contrastWcag': 'Contraste (WCAG)',
   'editor.contrastPickHint':
     'Escolha duas cores com a pipeta (ex.: o texto e depois o seu fundo) para verificar o rácio de contraste.',

@@ -38,8 +38,11 @@ export default function App(): React.ReactElement {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [projectModal, setProjectModal] = useState<{ mode: 'create' | 'rename'; project?: Project } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
+  const [moveTarget, setMoveTarget] = useState<Project | null>(null)
   const [exportItems, setExportItems] = useState<string[] | null>(null)
   const [activeMenu, setActiveMenu] = useState(false)
+  const [recordMenu, setRecordMenu] = useState(false)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; id: string } | null>(null)
   const anchorRef = useRef<string | null>(null)
   const colsRef = useRef(1)
 
@@ -173,6 +176,22 @@ export default function App(): React.ReactElement {
     }
   }
 
+  function handleCardContext(e: React.MouseEvent, id: string): void {
+    e.preventDefault()
+    // Don't disturb an existing multi-selection that already includes this card.
+    if (!selectedIds.has(id)) {
+      setSelectedIds(new Set([id]))
+      setFocusedId(id)
+      anchorRef.current = id
+    }
+    // Clamp so the menu stays on-screen near the right/bottom edge.
+    const MENU_W = 220
+    const MENU_H = 280
+    const x = Math.min(e.clientX, window.innerWidth - MENU_W)
+    const y = Math.min(e.clientY, window.innerHeight - MENU_H)
+    setCtxMenu({ x: Math.max(8, x), y: Math.max(8, y), id })
+  }
+
   function bulkMove(projectId: string | null): void {
     selectedIds.forEach((id) => api.moveScreenshot(id, projectId))
     api.toast(t('app.moved', { n: selectedIds.size }))
@@ -193,9 +212,11 @@ export default function App(): React.ReactElement {
     }
     setBulkTag('')
   }
-  // Export a contact sheet. Uses the current multi-selection if there is one, else the whole view.
+  // Export a contact sheet. Uses the current multi-selection if there is one, else the whole
+  // view. Videos can't go in an image sheet, so they're excluded.
   function openExport(): void {
-    const list = selectedIds.size >= 2 ? ids.filter((id) => selectedIds.has(id)) : ids
+    const base = selectedIds.size >= 2 ? ids.filter((id) => selectedIds.has(id)) : ids
+    const list = base.filter((id) => !byId.get(id)?.isVideo)
     if (list.length === 0) return
     setExportItems(list)
   }
@@ -222,10 +243,19 @@ export default function App(): React.ReactElement {
           setView(v)
           setSelectedIds(new Set())
           setFocusedId(null)
+          // Selecting a project (or Unfiled) also makes it the capture target, so the user
+          // doesn't have to set it active separately. Other views aren't capture targets,
+          // so browsing them leaves the active project unchanged.
+          if (v.type === 'project' && snap.settings.activeProjectId !== v.id) {
+            api.setActiveProject(v.id)
+          } else if (v.type === 'unfiled' && snap.settings.activeProjectId !== null) {
+            api.setActiveProject(null)
+          }
         }}
         onNewProject={() => setProjectModal({ mode: 'create' })}
         onRenameProject={(p) => setProjectModal({ mode: 'rename', project: p })}
         onDeleteProject={(p) => setDeleteTarget(p)}
+        onMoveProject={(p) => setMoveTarget(p)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
@@ -247,6 +277,21 @@ export default function App(): React.ReactElement {
             <button className="icon-btn" title={t('app.scrollingCapture')} onClick={() => api.startScrollCapture()}>
               <Icon name="scroll" size={18} />
             </button>
+            <div style={{ position: 'relative' }}>
+              <button className="icon-btn" title={t('app.record')} onClick={() => setRecordMenu((v) => !v)}>
+                <Icon name="record" size={18} />
+              </button>
+              {recordMenu && (
+                <div className="menu" style={{ left: 0, top: 40 }} onMouseLeave={() => setRecordMenu(false)}>
+                  <div className="menu-item" onClick={() => { setRecordMenu(false); api.startRecording('screen') }}>
+                    <Icon name="fullscreen" size={15} /> {t('app.recordScreen')}
+                  </div>
+                  <div className="menu-item" onClick={() => { setRecordMenu(false); api.startRecording('window') }}>
+                    <Icon name="window" size={15} /> {t('app.recordWindow')}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="search-wrap">
@@ -373,7 +418,12 @@ export default function App(): React.ReactElement {
           selectedIds={selectedIds}
           focusedId={focusedId}
           onCardClick={handleCardClick}
-          onCardDouble={(id) => api.openEditor(id)}
+          onCardDouble={(id) => {
+            // Videos aren't editable: double-click selects (opens Detail with a player).
+            if (byId.get(id)?.isVideo) setSelectedIds(new Set([id]))
+            else api.openEditor(id)
+          }}
+          onCardContext={handleCardContext}
           onCols={(c) => {
             colsRef.current = c
           }}
@@ -428,6 +478,14 @@ export default function App(): React.ReactElement {
         <DeleteProjectModal project={deleteTarget} onClose={() => setDeleteTarget(null)} />
       )}
 
+      {moveTarget && (
+        <MoveProjectModal
+          project={moveTarget}
+          count={snap.screenshots.filter((s) => s.projectId === moveTarget.id).length}
+          onClose={() => setMoveTarget(null)}
+        />
+      )}
+
       {exportItems && (
         <ExportSheetModal
           items={exportItems.map((id) => byId.get(id)!).filter(Boolean)}
@@ -437,6 +495,56 @@ export default function App(): React.ReactElement {
           onClose={() => setExportItems(null)}
         />
       )}
+
+      {ctxMenu && (() => {
+        const shot = byId.get(ctxMenu.id)
+        if (!shot) return null
+        const close = (): void => setCtxMenu(null)
+        return (
+          <>
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+              onClick={close}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                close()
+              }}
+            />
+            <div className="menu" style={{ position: 'fixed', left: ctxMenu.x, top: ctxMenu.y, zIndex: 50 }}>
+              <div className="menu-item" onClick={() => { api.revealScreenshot(shot.id); close() }}>
+                <Icon name="reveal" size={15} /> {t('ctx.openLocation')}
+              </div>
+              {!shot.isVideo && (
+                <div className="menu-item" onClick={() => { api.openEditor(shot.id); close() }}>
+                  <Icon name="edit" size={15} /> {t('ctx.openInEditor')}
+                </div>
+              )}
+              {!shot.isVideo && (
+                <div className="menu-item" onClick={() => { api.copyScreenshotToClipboard(shot.id); api.toast(t('detail.copiedToClipboard')); close() }}>
+                  <Icon name="copy" size={15} /> {t('ctx.copyImage')}
+                </div>
+              )}
+              <div className="menu-item" onClick={() => { api.pinScreenshot(shot.id); close() }}>
+                <Icon name="pin" size={15} /> {t('ctx.pin')}
+              </div>
+              <div className="menu-item" onClick={() => { api.toggleFavorite(shot.id); close() }}>
+                <Icon name="star" size={15} /> {shot.favorite ? t('ctx.unfavorite') : t('ctx.favorite')}
+              </div>
+              <div className="menu-sep" />
+              <div
+                className="menu-item danger"
+                onClick={() => {
+                  api.deleteScreenshot(shot.id, { deleteFile: true })
+                  showActionToast(t('trash.movedOne'), t('trash.undo'), () => api.restoreTrashed(shot.id))
+                  close()
+                }}
+              >
+                <Icon name="trash" size={15} /> {t('ctx.moveToTrash')}
+              </div>
+            </div>
+          </>
+        )
+      })()}
 
       <ToastHost />
     </div>
@@ -490,10 +598,11 @@ function ProjectPalette({ projectId, sig }: { projectId: string; sig: string }):
 function ProjectModal({ mode, project, onClose }: { mode: 'create' | 'rename'; project?: Project; onClose: () => void }): React.ReactElement {
   const [name, setName] = useState(project?.name ?? '')
   const [color, setColor] = useState(project?.color ?? PALETTE[Math.floor(Math.random() * PALETTE.length)])
+  const [location, setLocation] = useState<string | null>(null)
 
   async function submit(): Promise<void> {
     if (!name.trim()) return
-    if (mode === 'create') await api.createProject({ name: name.trim(), color })
+    if (mode === 'create') await api.createProject({ name: name.trim(), color, location: location ?? undefined })
     else if (project) await api.updateProject(project.id, { name: name.trim(), color })
     onClose()
   }
@@ -526,6 +635,39 @@ function ProjectModal({ mode, project, onClose }: { mode: 'create' | 'rename'; p
           />
         ))}
       </div>
+      {mode === 'create' && (
+        <>
+          <label className="field-label" style={{ marginTop: 14 }}>
+            {t('app.location')}
+          </label>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              className="input"
+              readOnly
+              value={location ?? t('app.locationDefault')}
+              title={location ?? t('app.locationDefault')}
+              style={{ flex: 1, color: location ? 'var(--text)' : 'var(--muted-2)' }}
+            />
+            <button
+              className="btn sm"
+              onClick={async () => {
+                const dir = await api.chooseDirectory()
+                if (dir) setLocation(dir)
+              }}
+            >
+              {t('app.chooseLocation')}
+            </button>
+            {location && (
+              <button className="btn sm ghost" onClick={() => setLocation(null)} title={t('app.locationDefault')}>
+                <Icon name="x" size={14} />
+              </button>
+            )}
+          </div>
+          <p className="small muted" style={{ marginTop: 6 }}>
+            {t('app.createLocationHelp')}
+          </p>
+        </>
+      )}
       <div className="row">
         <button className="btn ghost" onClick={onClose}>
           {t('app.cancel')}
@@ -563,6 +705,47 @@ function DeleteProjectModal({ project, onClose }: { project: Project; onClose: (
         >
           {t('app.delete')}
         </button>
+      </div>
+    </Modal>
+  )
+}
+
+function MoveProjectModal({ project, count, onClose }: { project: Project; count: number; onClose: () => void }): React.ReactElement {
+  const [dir, setDir] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function choose(): Promise<void> {
+    const picked = await api.chooseDirectory()
+    if (picked) setDir(picked)
+  }
+  async function move(): Promise<void> {
+    if (!dir || busy) return
+    setBusy(true)
+    const res = await api.moveProjectLocation(project.id, dir)
+    setBusy(false)
+    if (res.ok) api.toast(t('app.locationMoved', { n: res.moved }))
+    onClose()
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <h2>{t('app.moveLocationTitle', { name: project.name })}</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>{t('app.moveLocationHelp', { n: count })}</p>
+      <label className="field-label">{t('app.location')}</label>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          className="input"
+          readOnly
+          value={dir ?? ''}
+          placeholder={t('app.chooseLocation')}
+          title={dir ?? ''}
+          style={{ flex: 1 }}
+        />
+        <button className="btn sm" onClick={choose}>{t('app.chooseLocation')}</button>
+      </div>
+      <div className="row">
+        <button className="btn ghost" onClick={onClose}>{t('app.cancel')}</button>
+        <button className="btn primary" disabled={!dir || busy} onClick={move}>{t('app.moveLocationConfirm')}</button>
       </div>
     </Modal>
   )

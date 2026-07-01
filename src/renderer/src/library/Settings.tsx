@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { Settings } from '@shared/types'
 import { api } from '@ui/api'
 import { Icon } from '@ui/icons'
@@ -34,6 +34,31 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
   const [tab, setTab] = useState<'general' | 'capture' | 'hotkeys' | 'ai'>('general')
   const [keyInput, setKeyInput] = useState('')
   const [keyStatus, setKeyStatus] = useState<string>('')
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([])
+
+  // Populate the recording-microphone list when the General tab is shown. Device labels are
+  // blank until the page has been granted mic access once, so unlock them with a throwaway
+  // getUserMedia. Failing (mic blocked) just leaves the list empty; "System default" still works.
+  useEffect(() => {
+    if (tab !== 'general') return
+    let cancelled = false
+    void (async () => {
+      try {
+        let devices = await navigator.mediaDevices.enumerateDevices()
+        if (devices.some((d) => d.kind === 'audioinput' && !d.label)) {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true })
+          s.getTracks().forEach((tr) => tr.stop())
+          devices = await navigator.mediaDevices.enumerateDevices()
+        }
+        if (!cancelled) setMics(devices.filter((d) => d.kind === 'audioinput'))
+      } catch {
+        /* mic blocked or unavailable */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
 
   const set = (patch: Partial<Settings>): void => void api.updateSettings(patch)
   const setHotkey = (k: keyof Settings['hotkeys'], v: string): void => set({ hotkeys: { ...settings.hotkeys, [k]: v } })
@@ -105,6 +130,21 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
               </Row>
               <Row title={t('settings.launchAtStartup')} desc={t('settings.launchAtStartupDesc')}>
                 <Toggle on={settings.launchOnStartup} onChange={(v) => set({ launchOnStartup: v })} />
+              </Row>
+              <Row title={t('settings.recordingMic')} desc={t('settings.recordingMicDesc')}>
+                <select
+                  className="select"
+                  style={{ width: 220 }}
+                  value={settings.recordingMicId}
+                  onChange={(e) => set({ recordingMicId: e.target.value })}
+                >
+                  <option value="">{t('settings.recordingMicDefault')}</option>
+                  {mics.map((d, i) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `${t('settings.recordingMic')} ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
               </Row>
               <Row title={t('settings.trashRetention')} desc={t('settings.trashRetentionDesc')}>
                 <select
@@ -196,7 +236,8 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
                   ['region', 'settings.hotkeyRegion'],
                   ['window', 'settings.hotkeyWindow'],
                   ['fullscreen', 'settings.hotkeyFullscreen'],
-                  ['delayed', 'settings.hotkeyDelayed']
+                  ['delayed', 'settings.hotkeyDelayed'],
+                  ['record', 'settings.hotkeyRecord']
                 ] as const
               ).map(([k, labelKey]) => (
                 <Row key={k} title={t(labelKey)}>

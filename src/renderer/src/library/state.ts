@@ -3,6 +3,8 @@ import { t } from '@ui/i18n'
 
 export type View =
   | { type: 'all' }
+  | { type: 'screenshots' }
+  | { type: 'videos' }
   | { type: 'unfiled' }
   | { type: 'favorites' }
   | { type: 'trash' }
@@ -18,13 +20,19 @@ export function viewToQuery(view: View, text: string, sort: SortMode): SearchQue
   else if (view.type === 'project') q.projectId = view.id
   else if (view.type === 'favorites') q.favorite = true
   else if (view.type === 'tag') q.tagId = view.id
+  else if (view.type === 'screenshots') q.media = 'image'
+  else if (view.type === 'videos') q.media = 'video'
   return q
 }
 
 export function viewTitle(view: View, projectName?: string, tagName?: string): string {
   switch (view.type) {
     case 'all':
-      return t('view.allScreenshots')
+      return t('view.everything')
+    case 'screenshots':
+      return t('view.screenshots')
+    case 'videos':
+      return t('view.videos')
     case 'unfiled':
       return t('view.unfiled')
     case 'favorites':

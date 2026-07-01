@@ -49,21 +49,29 @@ export default function Detail({ snap, shot, onClose }: Props): React.ReactEleme
       </div>
 
       <div className="detail-scroll">
-        <img className="detail-img" src={`${api.fileUrl(shot.filePath)}?v=${shot.bytes}`} alt="" />
+        {shot.isVideo ? (
+          <video className="detail-img" controls src={`${api.fileUrl(shot.filePath)}?v=${shot.bytes}`} />
+        ) : (
+          <img className="detail-img" src={`${api.fileUrl(shot.filePath)}?v=${shot.bytes}`} alt="" />
+        )}
 
         <div className="detail-actions">
-          <button className="btn sm" onClick={() => api.openEditor(shot.id)}>
-            <Icon name="edit" size={15} /> {t('detail.edit')}
-          </button>
-          <button
-            className="btn sm"
-            onClick={() => {
-              api.copyScreenshotToClipboard(shot.id)
-              api.toast(t('detail.copiedToClipboard'))
-            }}
-          >
-            <Icon name="copy" size={15} /> {t('detail.copy')}
-          </button>
+          {!shot.isVideo && (
+            <button className="btn sm" onClick={() => api.openEditor(shot.id)}>
+              <Icon name="edit" size={15} /> {t('detail.edit')}
+            </button>
+          )}
+          {!shot.isVideo && (
+            <button
+              className="btn sm"
+              onClick={() => {
+                api.copyScreenshotToClipboard(shot.id)
+                api.toast(t('detail.copiedToClipboard'))
+              }}
+            >
+              <Icon name="copy" size={15} /> {t('detail.copy')}
+            </button>
+          )}
           <button className="btn sm" onClick={() => api.pinScreenshot(shot.id)}>
             <Icon name="pin" size={15} /> {t('detail.pin')}
           </button>

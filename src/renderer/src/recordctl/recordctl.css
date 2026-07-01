@@ -1,0 +1,74 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  user-select: none;
+}
+.rc-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: #11141b;
+  border: 1px solid #2a3344;
+  border-radius: 14px;
+  color: #e8ebf2;
+  -webkit-app-region: drag;
+}
+.rc-rec {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.rc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f25555;
+  animation: rc-pulse 1.1s ease-in-out infinite;
+}
+@keyframes rc-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.rc-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+}
+.rc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #e8ebf2;
+  background: #1c212c;
+  cursor: pointer;
+}
+.rc-btn.primary {
+  background: linear-gradient(135deg, #f25555, #e0356b);
+  color: #fff;
+}
+.rc-btn.ghost {
+  background: transparent;
+  color: #8b94a8;
+  padding: 7px 8px;
+}
+.rc-btn:hover {
+  filter: brightness(1.1);
+}

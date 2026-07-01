@@ -1,6 +1,14 @@
 // Shared data + IPC contract types used by main, preload, and renderer.
 
-export type CaptureMode = 'region' | 'window' | 'fullscreen' | 'import' | 'scroll'
+export type CaptureMode = 'region' | 'window' | 'fullscreen' | 'import' | 'scroll' | 'record'
+
+// Config handed to the recordctl window when a recording session starts.
+export interface RecordConfig {
+  sourceId: string // desktopCapturer source id (screen or window)
+  mic: boolean // capture the microphone alongside video
+  micDeviceId?: string // chosen input device; empty/undefined = system default
+  mode: CaptureMode // 'record'
+}
 
 export interface ScrollStatus {
   frames: number
@@ -33,6 +41,7 @@ export interface Project {
   color: string
   icon: string
   folderName: string // folder under the storage root
+  customPath?: string | null // absolute path to the project's own folder; overrides storageRoot/folderName when set
   createdAt: number
   archived: boolean
   sortOrder: number
@@ -55,6 +64,8 @@ export interface Screenshot {
   bytes: number
   createdAt: number
   captureMode: CaptureMode
+  isVideo?: boolean // true for screen recordings (WebM); absent/false = still image
+  durationMs?: number // video duration in milliseconds (videos only)
   sourceApp: string | null
   sourceWindowTitle: string | null
   sourceUrl: string | null
@@ -99,12 +110,15 @@ export interface Settings {
   aiAutoDescribe: boolean
   aiSuggestProject: boolean
   ocrEnabled: boolean
+  // recording microphone deviceId ('' = system default)
+  recordingMicId: string
   // hotkeys (Electron accelerator strings)
   hotkeys: {
     region: string
     window: string
     fullscreen: string
     delayed: string
+    record: string
   }
   // brand palette for beautify
   brandColors: string[]
@@ -177,6 +191,7 @@ export interface SearchQuery {
   tagId?: string
   favorite?: boolean
   mode?: CaptureMode
+  media?: 'image' | 'video' // undefined = both; 'video' = recordings only, 'image' = stills only
   fromDate?: number
   toDate?: number
   sort?: 'newest' | 'oldest' | 'name'
@@ -213,12 +228,14 @@ export interface SnaplineApi {
   clearApiKey: () => Promise<{ ok: boolean }>
   testApiKey: () => Promise<{ ok: boolean; error?: string }>
   chooseStorageRoot: () => Promise<string | null>
+  chooseDirectory: () => Promise<string | null>
   completeOnboarding: (payload: { storageRoot: string }) => Promise<Settings>
 
   // projects
-  createProject: (input: { name: string; color?: string; icon?: string }) => Promise<Project>
+  createProject: (input: { name: string; color?: string; icon?: string; location?: string }) => Promise<Project>
   updateProject: (id: string, patch: Partial<Project>) => Promise<Project>
   deleteProject: (id: string, opts: { deleteFiles: boolean }) => Promise<{ ok: boolean }>
+  moveProjectLocation: (id: string, newParentDir: string) => Promise<{ ok: boolean; moved: number }>
   setActiveProject: (id: string | null) => Promise<Settings>
   openProjectFolder: (id: string) => Promise<void>
   getProjectPalette: (projectId: string) => Promise<ProjectPalette>
@@ -235,6 +252,12 @@ export interface SnaplineApi {
   scrollDone: () => Promise<void>
   scrollCancel: () => Promise<void>
   onScrollStatus: (cb: (status: ScrollStatus) => void) => () => void
+
+  // screen recording (video)
+  startRecording: (mode: 'screen' | 'window') => Promise<{ ok: boolean }>
+  getRecordConfig: () => Promise<RecordConfig | null>
+  finishRecording: (payload: { webm: ArrayBuffer; posterDataUrl: string | null; width: number; height: number; durationMs: number }) => Promise<void>
+  cancelRecording: () => Promise<void>
 
   // screenshots
   moveScreenshot: (id: string, projectId: string | null) => Promise<Screenshot>
