@@ -1,6 +1,6 @@
 # Snapline Privacy Policy
 
-_Last updated: 1 July 2026_
+_Last updated: 2 July 2026_
 
 Snapline is a local-first screenshot and screen-recording manager for Windows. It is built so that
 your captures stay on your own computer. This policy explains what data Snapline handles and what
@@ -26,12 +26,13 @@ leaves your device.
 
 Snapline does not upload any of this to the developer.
 
-## Microphone
+## Microphone and system audio
 
-If you use screen recording and leave the microphone enabled, Snapline records audio from the
-microphone you select, only for the duration of that recording, and saves it inside the resulting
-video file on your computer. Audio is never streamed or sent anywhere else. You can mute the
-microphone at any time during a recording.
+If you use screen recording with audio enabled, Snapline records the sources you chose in Settings
+(your selected microphone, the sound playing on your PC, or both), only for the duration of that
+recording, and saves the audio inside the resulting video file on your computer. Audio is never
+streamed or sent anywhere else. You can mute the microphone at any time during a recording, and you
+can set recordings to have no audio at all.
 
 ## Optional cloud AI (off by default)
 
@@ -71,6 +72,6 @@ date.
 
 ## Contact
 
-Questions about this policy can be sent to: **[add your public contact email here]**
+Questions about this policy can be sent to: **joaoqueiros@joaoqueiros.com**
 
 Developer: João Queirós.
