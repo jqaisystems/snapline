@@ -98,8 +98,17 @@ pin, scrollctl. Four post-launch "improvement" directions chosen; three done, on
   the file is missing. Verified in plain node: model loads in ~0.5s, `recognize` runs (the bare
   `electron script.cjs` harness hangs on tesseract worker init, but the real main-process app does not).
   Recommend a real `dist` build + install to confirm the packaged path before release.
-- NOT yet fixed (known, lower priority audit backlog): `snapmedia://` reads any abs path (confine to
-  storageRoot); `aiBaseUrl` SSRF; `hiddenPaths` unbounded; `sandbox:false`; build doesn't run typecheck.
+- DONE (2026-07-02, commit 8412135) System-audio recording: `Settings.recordingAudioSource`
+  (none/mic/system/both), loopback via getDisplayMedia + main-process `setDisplayMediaRequestHandler`
+  `audio:'loopback'`, mic+system mixed with Web Audio (48 kHz, 0.85 gain each), 128 kbps audio.
+  CRITICAL gotcha found by live-debugging: WASAPI loopback delivers permanent silence if capture
+  starts while nothing is playing and never recovers, so recordctl keeps a zero-gain oscillator
+  rendering for the whole recording (keep-alive in `keepAliveRef`). Also: stale saved mic id
+  (OverconstrainedError) now falls back to the default mic. All three modes verified live
+  (worst case: recording started in silence, audio joining later is captured).
+- DONE (2026-07-02, commit f375a34) The audit backlog above is fixed: snapmedia:// confined to
+  allowed roots, aiBaseUrl SSRF guard, openExternal allowlist, hiddenPaths pruned, sandbox:true on
+  all windows, typecheck gates build/dist. New `src/main/net.ts` + `test/security.test.ts`.
 - DONE (2026-06-27) Recently-deleted trash + undo: "Delete" now moves files to a hidden
   `.snapline-trash/` folder under the storage root (watcher ignores dotfiles, so no index churn) instead
   of unlinking. `TrashedScreenshot` type + `store.trash` + `src/main/trash.ts` (`trashById`/`restoreById`/
@@ -109,10 +118,16 @@ pin, scrollctl. Four post-launch "improvement" directions chosen; three done, on
   UI: "Recently deleted" sidebar view (`TrashView.tsx`) with Restore/Delete-forever/Empty, retention
   control in Settings, and an actionable **Undo toast** (`showActionToast` in `ui/hooks.tsx`) after every
   delete (Detail + bulk). "Remove from Snapline" (hide, keep file) unchanged. Fully localized (en+pt).
-- TODO NEXT SESSION — Ship-ready (last item): code-signing path (avoid Windows "unknown publisher"
-  warning). Ask first: whether a paid OV/EV code-signing cert is wanted (EV clears SmartScreen instantly).
-  Also: auto-update repo `jqaisystems/snapline` now exists + project is under git (pushed private);
-  remaining publish steps are GH_TOKEN + `npm run dist -- --publish always`.
+- TODO NEXT SESSION, Microsoft Store launch (free; supersedes the code-signing item, the Store signs
+  the package). Remaining steps, in order:
+  1. Push `main` to GitHub (local is ahead of origin).
+  2. Fill the contact email placeholder in `docs/privacy-policy.md`, enable GitHub Pages from `/docs`.
+  3. Rebuild the Store package (`npm run dist:store`, consider bumping to 1.0.1): the existing
+     `Snapline-Setup-1.0.0.appx` predates MP4 + system-audio recording.
+  4. Submit in Partner Center (upload appx, listing, screenshots, age rating, privacy URL).
+  5. After install from Store: verify mic AND system-audio recording in the packaged app (manifest
+     declares only `runFullTrust`, no microphone capability; plan = inject
+     `<DeviceCapability Name="microphone"/>` post-build if silent).
 
 ## Deferred / future (outside the 4 directions)
 
