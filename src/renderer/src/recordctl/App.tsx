@@ -23,6 +23,9 @@ export default function App(): React.ReactElement {
   const cancelledRef = useRef(false)
   const endedRef = useRef(false) // stop()/cancel() are single-shot; guards the finish-vs-cancel race
   const containerRef = useRef<'mp4' | 'webm'>('webm') // actual container MediaRecorder produced
+  const audioCtxRef = useRef<AudioContext | null>(null) // mixer when recording mic + system together
+  const keepAliveRef = useRef<AudioContext | null>(null) // silent render session that keeps Windows loopback delivering
+  const rawAudioTracksRef = useRef<MediaStreamTrack[]>([]) // source tracks feeding the mix, to stop on teardown
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -34,9 +37,16 @@ export default function App(): React.ReactElement {
         return
       }
       try {
+        const wantSystem = cfg.audioSource === 'system' || cfg.audioSource === 'both'
+        const wantMic = cfg.audioSource === 'mic' || cfg.audioSource === 'both'
+        const videoConstraint = {
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: cfg.sourceId }
+        }
+
+        // Desktop video (native resolution via the precise source id).
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: cfg.sourceId } }
+          video: videoConstraint
         } as unknown as MediaStreamConstraints)
         if (disposed) {
           stream.getTracks().forEach((t) => t.stop())
@@ -47,34 +57,116 @@ export default function App(): React.ReactElement {
         const s = vtrack?.getSettings()
         if (s?.width && s?.height) dimsRef.current = { width: s.width, height: s.height }
 
-        if (cfg.mic) {
+        // System ("background") audio: getDisplayMedia + the main-process loopback handler is the
+        // only reliable way to capture Windows system sound. We keep only its audio track and drop
+        // the video it also returns. Failing just records without system audio.
+        let systemTrack: MediaStreamTrack | undefined
+        if (wantSystem) {
           try {
-            // Honour the user's chosen input device; fall back to the system default.
-            const audioConstraint: MediaTrackConstraints | boolean = cfg.micDeviceId
-              ? { deviceId: { exact: cfg.micDeviceId } }
-              : true
-            const micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint })
-            const mt = micStream.getAudioTracks()[0]
-            if (mt) {
-              stream.addTrack(mt)
-              micTrackRef.current = mt
+            // Windows (WASAPI) loopback delivers permanent silence if the capture starts while
+            // nothing is rendering audio on the device, and it never recovers once sound starts.
+            // Keep our own silent render session open for the whole recording so the loopback
+            // stream always has a pacing source. Zero-gain, so nothing is audible.
+            const ka = new AudioContext()
+            const kaOsc = ka.createOscillator()
+            const kaGain = ka.createGain()
+            kaGain.gain.value = 0
+            kaOsc.connect(kaGain).connect(ka.destination)
+            kaOsc.start()
+            keepAliveRef.current = ka
+            await ka.resume().catch(() => {})
+            // Wait (bounded) until the context has actually rendered a quantum, i.e. the OS
+            // audio session exists, before opening the loopback capture.
+            const kaT0 = performance.now()
+            while (ka.currentTime === 0 && performance.now() - kaT0 < 500) {
+              await new Promise((r) => setTimeout(r, 25))
+            }
+            // Disable the voice DSP (noise suppression / auto-gain / echo cancellation): it is tuned
+            // for speech and turns music/system audio muddy. Loopback should be captured raw.
+            const sysStream = await navigator.mediaDevices.getDisplayMedia({
+              video: true,
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            })
+            systemTrack = sysStream.getAudioTracks()[0]
+            // Also clear any processing that survived, best-effort.
+            try {
+              await systemTrack?.applyConstraints({
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+              } as MediaTrackConstraints)
+            } catch {
+              /* not all constraints are settable post-hoc; ignore */
+            }
+            sysStream.getVideoTracks().forEach((t) => t.stop())
+            if (!systemTrack) void api.toast('System audio unavailable on this PC')
+          } catch (err) {
+            console.error('[recordctl] system audio unavailable:', err)
+            void api.toast('System audio unavailable, recording without it')
+          }
+        }
+
+        // Microphone (separate device stream), if requested.
+        let micTrack: MediaStreamTrack | undefined
+        if (wantMic) {
+          try {
+            let micStream: MediaStream
+            try {
+              const audioConstraint: MediaTrackConstraints | boolean = cfg.micDeviceId
+                ? { deviceId: { exact: cfg.micDeviceId } }
+                : true
+              micStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint })
+            } catch (err) {
+              // Saved device gone or stale (unplugged, id rotated): fall back to the system
+              // default microphone rather than silently recording without one.
+              if (!cfg.micDeviceId) throw err
+              console.error('[recordctl] chosen mic unavailable, falling back to default:', err)
+              micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            }
+            micTrack = micStream.getAudioTracks()[0]
+            if (micTrack) {
+              micTrackRef.current = micTrack
               setHasMic(true)
               setMicOn(true)
             } else {
-              void api.toast('No microphone track available, recording video only')
+              void api.toast('No microphone track available')
             }
           } catch (err) {
-            // Don't swallow: surface so the user knows and the error name reaches the main log.
-            console.error('[recordctl] mic unavailable, recording video only:', err)
-            void api.toast('Microphone unavailable, recording video only')
+            console.error('[recordctl] mic unavailable:', err)
+            void api.toast('Microphone unavailable')
           }
+        }
+
+        // MediaRecorder records a single audio track: use the one source directly, or mix mic +
+        // system into one track via the Web Audio API when both are present.
+        const audioSources = [systemTrack, micTrack].filter(Boolean) as MediaStreamTrack[]
+        rawAudioTracksRef.current = audioSources
+        stream.getAudioTracks().forEach((t) => stream.removeTrack(t))
+        if (audioSources.length === 1) {
+          stream.addTrack(audioSources[0])
+        } else if (audioSources.length >= 2) {
+          // Lock the mixer to 48 kHz (the loopback/mic native rate) to avoid resampling artifacts,
+          // and attenuate each source so summing mic + system doesn't clip/distort.
+          const ac = new AudioContext({ sampleRate: 48000 })
+          audioCtxRef.current = ac
+          const dest = ac.createMediaStreamDestination()
+          for (const tr of audioSources) {
+            const gain = ac.createGain()
+            gain.gain.value = 0.85
+            ac.createMediaStreamSource(new MediaStream([tr])).connect(gain).connect(dest)
+          }
+          stream.addTrack(dest.stream.getAudioTracks()[0])
         }
 
         await capturePoster(stream)
 
         const picked = pickMime(cfg.format)
         containerRef.current = picked.container
-        const rec = new MediaRecorder(stream, picked.mimeType ? { mimeType: picked.mimeType } : undefined)
+        // Explicit audio bitrate: the default for screen recording is low and garbles music
+        // (Spotify/YouTube). 128 kbps keeps background audio clear.
+        const recOpts: MediaRecorderOptions = { audioBitsPerSecond: 128000 }
+        if (picked.mimeType) recOpts.mimeType = picked.mimeType
+        const rec = new MediaRecorder(stream, recOpts)
         rec.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
         }
@@ -155,9 +247,20 @@ export default function App(): React.ReactElement {
     })
   }
 
+  // Stop the recording stream plus any raw mic/system source tracks, and close the mixer.
+  function teardownStreams(): void {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    rawAudioTracksRef.current.forEach((t) => t.stop())
+    rawAudioTracksRef.current = []
+    audioCtxRef.current?.close().catch(() => {})
+    audioCtxRef.current = null
+    keepAliveRef.current?.close().catch(() => {})
+    keepAliveRef.current = null
+  }
+
   function onStop(): void {
     if (timerRef.current) window.clearInterval(timerRef.current)
-    streamRef.current?.getTracks().forEach((t) => t.stop())
+    teardownStreams()
     if (cancelledRef.current) {
       void api.cancelRecording()
       return
@@ -183,7 +286,7 @@ export default function App(): React.ReactElement {
     const rec = recRef.current
     if (rec && rec.state !== 'inactive') rec.stop()
     else {
-      streamRef.current?.getTracks().forEach((t) => t.stop())
+      teardownStreams()
       void api.cancelRecording()
     }
   }

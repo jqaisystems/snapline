@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, session, desktopCapturer } from 'electron'
 import { getStore } from './store'
 import { registerIpc } from './ipc'
 import { reindexAll } from './broadcast'
@@ -33,6 +33,16 @@ if (!gotLock) {
       cb(permission === 'media')
     })
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media')
+
+    // Recording system ("background") audio needs getDisplayMedia with audio:'loopback' — the old
+    // getUserMedia chromeMediaSource trick no longer captures Windows loopback. The recordctl window
+    // calls getDisplayMedia purely to obtain this loopback audio track (it discards the video).
+    session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+      desktopCapturer
+        .getSources({ types: ['screen'] })
+        .then((sources) => callback(sources[0] ? { video: sources[0], audio: 'loopback' } : {}))
+        .catch(() => callback({}))
+    })
 
     // Surface renderer-side errors in the main process log (useful during dev walkthroughs).
     app.on('web-contents-created', (_e, contents) => {

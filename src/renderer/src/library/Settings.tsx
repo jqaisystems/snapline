@@ -250,6 +250,19 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
                   <option value="webm">{t('settings.formatWebm')}</option>
                 </select>
               </Row>
+              <Row title={t('settings.recordingAudio')} desc={t('settings.recordingAudioDesc')}>
+                <select
+                  className="select"
+                  style={{ width: 180 }}
+                  value={settings.recordingAudioSource}
+                  onChange={(e) => set({ recordingAudioSource: e.target.value as Settings['recordingAudioSource'] })}
+                >
+                  <option value="none">{t('settings.audioNone')}</option>
+                  <option value="mic">{t('settings.audioMic')}</option>
+                  <option value="system">{t('settings.audioSystem')}</option>
+                  <option value="both">{t('settings.audioBoth')}</option>
+                </select>
+              </Row>
               <Row title={t('settings.copyToClipboard')} desc={t('settings.copyToClipboardDesc')}>
                 <Toggle on={settings.copyToClipboardOnCapture} onChange={(v) => set({ copyToClipboardOnCapture: v })} />
               </Row>

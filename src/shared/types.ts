@@ -5,8 +5,9 @@ export type CaptureMode = 'region' | 'window' | 'fullscreen' | 'import' | 'scrol
 // Config handed to the recordctl window when a recording session starts.
 export interface RecordConfig {
   sourceId: string // desktopCapturer source id (screen or window)
-  mic: boolean // capture the microphone alongside video
+  mic: boolean // true when the chosen audio source includes the microphone
   micDeviceId?: string // chosen input device; empty/undefined = system default
+  audioSource: 'none' | 'mic' | 'system' | 'both' // what audio to record
   format: 'mp4' | 'webm' // preferred container; renderer falls back to webm if mp4 unsupported
   mode: CaptureMode // 'record'
 }
@@ -118,6 +119,8 @@ export interface Settings {
   recordingMicId: string
   // recording container: mp4 (broad compatibility) falls back to webm if unsupported
   recordingFormat: 'mp4' | 'webm'
+  // which audio to record: none, mic only, system (desktop loopback), or both mixed
+  recordingAudioSource: 'none' | 'mic' | 'system' | 'both'
   // hotkeys (Electron accelerator strings)
   hotkeys: {
     region: string

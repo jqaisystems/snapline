@@ -43,19 +43,22 @@ export async function startRecording(mode: 'screen' | 'window'): Promise<{ ok: b
       mode === 'window' ? await pickWindowSourceId() : await getDisplaySourceIdUnderCursor()
     if (!sourceId) return { ok: false } // cancelled or no source available
     const project = store.getProject(settings.activeProjectId) ?? null
+    const audioSource = settings.recordingAudioSource
+    const wantsMic = audioSource === 'mic' || audioSource === 'both'
     pending = {
       project,
       config: {
         sourceId,
-        mic: true,
+        mic: wantsMic,
         micDeviceId: settings.recordingMicId || undefined,
+        audioSource,
         format: settings.recordingFormat,
         mode: 'record'
       }
     }
     // Preflight the OS mic permission while the library is still visible, so a blocked mic gets an
     // actionable message instead of a silently audio-less video. The recording still proceeds.
-    if (pending.config.mic && systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
+    if (wantsMic && systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
       toast('Microphone is blocked in Windows. Enable it in Settings > Privacy > Microphone > "Let desktop apps access your microphone".')
     }
     hideLibrary()

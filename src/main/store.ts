@@ -40,6 +40,7 @@ function defaultSettings(): Settings {
     jpegQuality: 90,
     recordingMicId: '',
     recordingFormat: 'mp4',
+    recordingAudioSource: 'mic',
     hotkeys: {
       region: 'Control+Shift+1',
       window: 'Control+Shift+2',
