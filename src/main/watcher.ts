@@ -70,7 +70,10 @@ export function startWatcher(): void {
   watcher = chokidar.watch(watchTargets, {
     ignoreInitial: false,
     depth: 4,
-    ignored: /(^|[\\/])\../, // dotfiles
+    // Ignore dotfiles + the .snapline-trash folder by their OWN name only. A regex over the
+    // full path would also match a dot-prefixed ANCESTOR (e.g. a root under ~/.config), which
+    // would silently ignore the entire watched tree.
+    ignored: (fp: string) => path.basename(fp).startsWith('.'),
     awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }
   })
   watcher.on('add', (p) => onAdd(root, p))

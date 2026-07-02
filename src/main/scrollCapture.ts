@@ -31,6 +31,7 @@ let accRows = 0
 let capRows = 0
 let lastSig: Float64Array | null = null
 let libWasVisible = false
+let starting = false // guards the async region-picker window against a double-trigger
 
 function restoreLibrary(): void {
   if (libWasVisible) getLibraryWindow()?.show()
@@ -61,7 +62,8 @@ function reset(): void {
 }
 
 export async function startScrollCapture(): Promise<void> {
-  if (active) return
+  if (active || starting) return
+  starting = true
   // Get Snapline's own window out of the way so you can see and scroll the target.
   const lib = getLibraryWindow()
   libWasVisible = !!(lib && lib.isVisible())
@@ -69,6 +71,7 @@ export async function startScrollCapture(): Promise<void> {
 
   const sel = await selectRegion()
   if (!sel) {
+    starting = false
     restoreLibrary()
     return
   }
@@ -84,6 +87,7 @@ export async function startScrollCapture(): Promise<void> {
   capRows = 0
   frameCount = 0
   active = true
+  starting = false
   createScrollControlWindow(sel.display, sel.rect)
   pushStatus()
   timer = setInterval(() => void tick(), TICK_MS)

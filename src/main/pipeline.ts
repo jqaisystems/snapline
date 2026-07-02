@@ -79,6 +79,7 @@ export async function enrichOne(id: string): Promise<Screenshot | undefined> {
             filePath: newPath,
             fileName: newPath.split(/[\\/]/).pop() ?? moved.fileName
           })
+          store.flush() // file already moved on disk: persist now so a crash can't strand it
           toast(`AI filed a screenshot into "${project.name}"`)
         }
       }

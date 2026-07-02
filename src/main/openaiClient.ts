@@ -1,6 +1,8 @@
 // Minimal OpenAI-compatible /chat/completions client (plain fetch, no SDK, no Electron).
 // Works with OpenAI, OpenRouter, Ollama and LM Studio. Kept dependency-free so it is
 // unit-testable in plain Node.
+import { isAllowedAiBaseUrl } from './net'
+
 export interface OpenAIContentPart {
   type: 'text' | 'image_url'
   text?: string
@@ -14,6 +16,10 @@ export async function openaiChat(
   content: OpenAIContentPart[] | string,
   maxTokens = 1024
 ): Promise<string> {
+  // Never attach the API key to a host we haven't vetted (SSRF / key leak).
+  if (!isAllowedAiBaseUrl(baseUrl)) {
+    throw new Error('AI base URL not allowed: use https, or http only for localhost.')
+  }
   const url = baseUrl.replace(/\/+$/, '') + '/chat/completions'
   const res = await fetch(url, {
     method: 'POST',

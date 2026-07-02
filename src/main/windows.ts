@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, shell } from 'electron'
 import path from 'path'
 import type { Rect } from '../shared/types'
+import { isSafeExternalUrl } from './net'
 
 const preloadPath = path.join(__dirname, '../preload/index.js')
 
@@ -44,11 +45,13 @@ export function showLibraryWindow(): BrowserWindow {
     backgroundColor: '#0b0d12',
     title: 'Snapline',
     autoHideMenuBar: true,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: { preload: preloadPath, sandbox: true }
   })
   libraryWindow.on('ready-to-show', () => libraryWindow?.show())
   libraryWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url)
+    // Only hand safe web/mail schemes to the OS; never let renderer content launch
+    // arbitrary protocols (e.g. file:, custom app handlers) via window.open.
+    if (isSafeExternalUrl(url)) shell.openExternal(url)
     return { action: 'deny' }
   })
   libraryWindow.on('closed', () => {
@@ -77,7 +80,7 @@ export function createOverlayWindow(bounds: Rect): BrowserWindow {
     alwaysOnTop: true,
     fullscreenable: false,
     enableLargerThanScreen: true,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: { preload: preloadPath, sandbox: true }
   })
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setVisibleOnAllWorkspaces(true)
@@ -115,7 +118,7 @@ export function createEditorWindow(screenshotId: string): BrowserWindow {
     backgroundColor: '#0b0d12',
     title: 'Snapline Editor',
     autoHideMenuBar: true,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: { preload: preloadPath, sandbox: true }
   })
   editorWindow.on('ready-to-show', () => editorWindow?.show())
   editorWindow.on('closed', () => {
@@ -140,7 +143,7 @@ export function createPinWindow(screenshotId: string, width: number, height: num
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: true,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: { preload: preloadPath, sandbox: true }
   })
   win.setAlwaysOnTop(true, 'floating')
   win.on('closed', () => pinWindows.delete(win))
@@ -178,7 +181,7 @@ export function createScrollControlWindow(display: Electron.Display, rect: Rect)
     skipTaskbar: true,
     alwaysOnTop: true,
     fullscreenable: false,
-    webPreferences: { preload: preloadPath, sandbox: false }
+    webPreferences: { preload: preloadPath, sandbox: true }
   })
   scrollControlWindow.setAlwaysOnTop(true, 'screen-saver')
   scrollControlWindow.on('closed', () => {
@@ -219,7 +222,7 @@ export function createRecordControlWindow(): BrowserWindow {
     skipTaskbar: true,
     alwaysOnTop: true,
     fullscreenable: false,
-    webPreferences: { preload: preloadPath, sandbox: false, backgroundThrottling: false }
+    webPreferences: { preload: preloadPath, sandbox: true, backgroundThrottling: false }
   })
   recordControlWindow.setAlwaysOnTop(true, 'screen-saver')
   recordControlWindow.on('closed', () => {

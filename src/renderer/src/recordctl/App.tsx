@@ -21,6 +21,7 @@ export default function App(): React.ReactElement {
   const dimsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 })
   const startedAtRef = useRef(0)
   const cancelledRef = useRef(false)
+  const endedRef = useRef(false) // stop()/cancel() are single-shot; guards the finish-vs-cancel race
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -159,6 +160,8 @@ export default function App(): React.ReactElement {
   }
 
   function stop(): void {
+    if (endedRef.current) return // ignore double Stop / Stop-then-Cancel / source-ended races
+    endedRef.current = true
     const rec = recRef.current
     if (rec && rec.state !== 'inactive') rec.stop()
     else {

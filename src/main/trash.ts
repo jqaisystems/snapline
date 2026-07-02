@@ -40,11 +40,12 @@ export function restoreById(id: string): boolean {
   const projectId = store.getProject(s.projectId) ? s.projectId : null
   const project = store.getProject(projectId) ?? null
   const restoredPath = restoreFileFromTrash(s, project)
-  store.removeFromTrash(id)
   if (!restoredPath) {
-    store.flush() // entry removed; persist even though the file was already gone
+    // Move failed (no storage root, permissions, disk full): the file is still in the trash
+    // folder, so keep the trash entry — removing it would orphan the file unrecoverably.
     return false
   }
+  store.removeFromTrash(id)
   const restored: Screenshot = { ...s, projectId, filePath: restoredPath, fileName: path.basename(restoredPath) }
   store.addScreenshot(restored)
   store.flush() // file already moved back to its project folder: persist now

@@ -65,6 +65,9 @@ class Store {
   private db: DbShape
   private saveTimer: NodeJS.Timeout | null = null
   private cachedApiKey: string | null = null
+  // True only when the live main data file is known-good, so we never snapshot a corrupt
+  // main file over a good .bak (which would defeat recovery).
+  private mainClean = false
 
   constructor() {
     const dir = app.getPath('userData')
@@ -102,9 +105,13 @@ class Store {
 
   private load(): DbShape {
     const main = this.readFrom(this.dataPath)
-    if (main) return main
+    if (main) {
+      this.mainClean = true // live main file parsed: safe to back it up
+      return main
+    }
     // Main file missing or corrupt: try the last-known-good backup before giving up,
-    // so a crash mid-write can never silently wipe the whole library.
+    // so a crash mid-write can never silently wipe the whole library. Leave mainClean
+    // false so the next write does NOT copy the corrupt main file over the good .bak.
     const bak = this.readFrom(this.dataPath + '.bak')
     if (bak) {
       console.warn('[store] main data file unreadable; recovered from .bak')
@@ -121,13 +128,26 @@ class Store {
       const toSave = { ...this.db, settings: { ...this.db.settings, hasApiKey: false } }
       const json = JSON.stringify(toSave, null, 2)
       const tmp = this.dataPath + '.tmp'
-      fs.writeFileSync(tmp, json, 'utf-8')
+      // Write + fsync the tmp so its data blocks reach disk before the rename metadata,
+      // making the atomic replace durable across power loss (not just crash-safe).
+      const fd = fs.openSync(tmp, 'w')
       try {
-        if (fs.existsSync(this.dataPath)) fs.copyFileSync(this.dataPath, this.dataPath + '.bak')
+        fs.writeSync(fd, json, 0, 'utf-8')
+        fs.fsyncSync(fd)
+      } finally {
+        fs.closeSync(fd)
+      }
+      // Only snapshot the live file to .bak when it is known-good; never overwrite a good
+      // backup with a corrupt main file (which would defeat recovery).
+      try {
+        if (this.mainClean && fs.existsSync(this.dataPath)) {
+          fs.copyFileSync(this.dataPath, this.dataPath + '.bak')
+        }
       } catch {
         /* backup is best-effort */
       }
       fs.renameSync(tmp, this.dataPath)
+      this.mainClean = true // we just wrote validated JSON: the live file is now good
     } catch (err) {
       console.error('[store] write failed:', err)
     }

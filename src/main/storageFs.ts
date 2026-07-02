@@ -234,9 +234,12 @@ export function importFiles(srcPaths: string[], projectId: string | null): Scree
   const dir = projectDir(project ?? null)
   if (!dir) return []
   const out: Screenshot[] = []
-  for (const src of srcPaths) {
+  for (const src of srcPaths.slice(0, 1000)) {
+    // Renderer supplies these paths; validate before copying: real file + supported type.
     const ext = path.extname(src).toLowerCase()
     if (!SUPPORTED_EXT.includes(ext)) continue
+    const st = fs.statSync(src, { throwIfNoEntry: false })
+    if (!st || !st.isFile()) continue
     try {
       const base = sanitize(path.basename(src, ext))
       const dest = uniqueFilePath(dir, base, ext)

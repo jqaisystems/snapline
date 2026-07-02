@@ -7,18 +7,19 @@
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "npm run test:filing && npm run test:ops && npm run test:openai",
+    "test": "npm run test:filing && npm run test:ops && npm run test:openai && npm run test:search && npm run test:security",
+    "test:security": "esbuild test/security.test.ts --bundle --platform=node --format=cjs --outfile=test-out/security.test.cjs && node test-out/security.test.cjs",
     "test:filing": "esbuild test/filing.test.ts --bundle --platform=node --format=cjs --external:electron --outfile=test-out/filing.test.cjs && electron test-out/filing.test.cjs",
     "test:ops": "esbuild test/ops.test.ts --bundle --platform=node --format=cjs --external:electron --outfile=test-out/ops.test.cjs && electron test-out/ops.test.cjs",
     "test:openai": "esbuild test/openai.test.ts --bundle --platform=node --format=cjs --outfile=test-out/openai.test.cjs && node test-out/openai.test.cjs",
     "test:search": "esbuild test/search.test.ts --bundle --platform=node --format=cjs --outfile=test-out/search.test.cjs && node test-out/search.test.cjs",
-    "dist": "electron-vite build && electron-builder --win --config electron-builder.yml",
-    "dist:dir": "electron-vite build && electron-builder --win --dir --config electron-builder.yml",
-    "dist:store": "electron-vite build && electron-builder --win appx --config electron-builder.yml"
+    "dist": "npm run build && electron-builder --win --config electron-builder.yml",
+    "dist:dir": "npm run build && electron-builder --win --dir --config electron-builder.yml",
+    "dist:store": "npm run build && electron-builder --win appx --config electron-builder.yml"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",

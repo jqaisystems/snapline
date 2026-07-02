@@ -11,7 +11,12 @@ import { broadcastSnapshot, toast } from './broadcast'
 import { createRecordControlWindow, closeRecordControlWindow, getLibraryWindow } from './windows'
 import type { Project, RecordConfig } from '../shared/types'
 
+// Sanity bounds on renderer-supplied recording data before it is written to disk.
+const MAX_WEBM_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
+const MAX_POSTER_CHARS = 8 * 1024 * 1024 // ~8 MB of base64
+
 let pending: { project: Project | null; config: RecordConfig } | null = null
+let starting = false // set across the async source-picker so a second trigger can't double-start
 let libWasVisible = false
 
 function hideLibrary(): void {
@@ -25,28 +30,34 @@ function restoreLibrary(): void {
 }
 
 export async function startRecording(mode: 'screen' | 'window'): Promise<{ ok: boolean }> {
-  if (pending) return { ok: false } // a recording is already in progress
+  if (pending || starting) return { ok: false } // already recording, or a start is in flight
   const store = getStore()
   const settings = store.getSettings()
   if (!settings.storageRoot) {
     toast('Choose a storage folder in Snapline before recording.')
     return { ok: false }
   }
-  const sourceId = mode === 'window' ? await pickWindowSourceId() : await getDisplaySourceIdUnderCursor()
-  if (!sourceId) return { ok: false } // cancelled or no source available
-  const project = store.getProject(settings.activeProjectId) ?? null
-  pending = {
-    project,
-    config: { sourceId, mic: true, micDeviceId: settings.recordingMicId || undefined, mode: 'record' }
+  starting = true
+  try {
+    const sourceId =
+      mode === 'window' ? await pickWindowSourceId() : await getDisplaySourceIdUnderCursor()
+    if (!sourceId) return { ok: false } // cancelled or no source available
+    const project = store.getProject(settings.activeProjectId) ?? null
+    pending = {
+      project,
+      config: { sourceId, mic: true, micDeviceId: settings.recordingMicId || undefined, mode: 'record' }
+    }
+    // Preflight the OS mic permission while the library is still visible, so a blocked mic gets an
+    // actionable message instead of a silently audio-less video. The recording still proceeds.
+    if (pending.config.mic && systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
+      toast('Microphone is blocked in Windows. Enable it in Settings > Privacy > Microphone > "Let desktop apps access your microphone".')
+    }
+    hideLibrary()
+    createRecordControlWindow()
+    return { ok: true }
+  } finally {
+    starting = false
   }
-  // Preflight the OS mic permission while the library is still visible, so a blocked mic gets an
-  // actionable message instead of a silently audio-less video. The recording still proceeds.
-  if (pending.config.mic && systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
-    toast('Microphone is blocked in Windows. Enable it in Settings > Privacy > Microphone > "Let desktop apps access your microphone".')
-  }
-  hideLibrary()
-  createRecordControlWindow()
-  return { ok: true }
 }
 
 export function getRecordConfig(): RecordConfig | null {
@@ -67,9 +78,17 @@ export function finishRecording(payload: {
   if (!p) return
   try {
     const webm = Buffer.from(payload.webm)
-    if (webm.length === 0) return
-    const poster = payload.posterDataUrl
-      ? Buffer.from(payload.posterDataUrl.replace(/^data:image\/\w+;base64,/, ''), 'base64')
+    // Sanity caps on renderer-supplied data before writing it to disk.
+    if (webm.length === 0 || webm.length > MAX_WEBM_BYTES) {
+      if (webm.length > MAX_WEBM_BYTES) toast('Recording too large to save.')
+      return
+    }
+    const posterOk =
+      typeof payload.posterDataUrl === 'string' &&
+      /^data:image\/[a-z0-9.+-]+;base64,/i.test(payload.posterDataUrl) &&
+      payload.posterDataUrl.length <= MAX_POSTER_CHARS
+    const poster = posterOk
+      ? Buffer.from(payload.posterDataUrl!.replace(/^data:image\/[a-z0-9.+-]+;base64,/i, ''), 'base64')
       : null
     const store = getStore()
     const shot = saveRecordedVideo(

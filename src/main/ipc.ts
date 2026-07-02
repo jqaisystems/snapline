@@ -23,6 +23,7 @@ import { startRecording, getRecordConfig, finishRecording, cancelRecording } fro
 import { enrichOne, queueEnrichment } from './pipeline'
 import { detectPii as aiDetectPii, testApiKey as aiTestKey } from './ai'
 import { broadcastSnapshot, reindexAll, toast } from './broadcast'
+import { isAllowedAiBaseUrl } from './net'
 import { startWatcher } from './watcher'
 import { registerHotkeys } from './hotkeys'
 import { buildTrayMenu } from './tray'
@@ -114,6 +115,10 @@ export function registerIpc(): void {
 
   // ---- settings ----
   ipcMain.handle('updateSettings', (_e, patch: Partial<Settings>) => {
+    // Immediate feedback if the AI base URL won't be usable (the client also refuses it).
+    if (patch.aiBaseUrl && patch.aiBaseUrl.trim() && !isAllowedAiBaseUrl(patch.aiBaseUrl.trim())) {
+      toast('That AI base URL is not allowed (use https, or http on localhost). It will not be used.')
+    }
     const next = store.updateSettings(patch)
     if (patch.hotkeys) registerHotkeys()
     buildTrayMenu()
@@ -444,11 +449,15 @@ export function registerIpc(): void {
         // Move to the recoverable trash (removes from index + search inside trashById).
         trashById(id)
       } else {
-        // keep the file on disk, just hide it from the library (watcher must skip it)
+        // keep the file on disk, just hide it from the library (watcher must skip it).
+        // Prune on write so this never grows without bound: dedupe, drop entries whose file
+        // is gone, add this one, and keep only the most recent 5000.
         const settings = store.getSettings()
-        if (!settings.hiddenPaths.includes(s.filePath)) {
-          store.updateSettings({ hiddenPaths: [...settings.hiddenPaths, s.filePath] })
-        }
+        const pruned = settings.hiddenPaths.filter(
+          (p) => p !== s.filePath && fs.existsSync(p)
+        )
+        pruned.push(s.filePath)
+        store.updateSettings({ hiddenPaths: pruned.slice(-5000) })
         try {
           if (s.thumbPath && fs.existsSync(s.thumbPath)) fs.unlinkSync(s.thumbPath)
         } catch { /* ignore */ }
