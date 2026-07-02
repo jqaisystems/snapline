@@ -7,6 +7,7 @@ export interface RecordConfig {
   sourceId: string // desktopCapturer source id (screen or window)
   mic: boolean // capture the microphone alongside video
   micDeviceId?: string // chosen input device; empty/undefined = system default
+  format: 'mp4' | 'webm' // preferred container; renderer falls back to webm if mp4 unsupported
   mode: CaptureMode // 'record'
 }
 
@@ -110,8 +111,13 @@ export interface Settings {
   aiAutoDescribe: boolean
   aiSuggestProject: boolean
   ocrEnabled: boolean
+  // screenshot file format
+  screenshotFormat: 'png' | 'jpeg'
+  jpegQuality: number // 1-100, used when screenshotFormat = 'jpeg'
   // recording microphone deviceId ('' = system default)
   recordingMicId: string
+  // recording container: mp4 (broad compatibility) falls back to webm if unsupported
+  recordingFormat: 'mp4' | 'webm'
   // hotkeys (Electron accelerator strings)
   hotkeys: {
     region: string
@@ -256,7 +262,7 @@ export interface SnaplineApi {
   // screen recording (video)
   startRecording: (mode: 'screen' | 'window') => Promise<{ ok: boolean }>
   getRecordConfig: () => Promise<RecordConfig | null>
-  finishRecording: (payload: { webm: ArrayBuffer; posterDataUrl: string | null; width: number; height: number; durationMs: number }) => Promise<void>
+  finishRecording: (payload: { webm: ArrayBuffer; posterDataUrl: string | null; width: number; height: number; durationMs: number; ext?: 'mp4' | 'webm' }) => Promise<void>
   cancelRecording: () => Promise<void>
 
   // screenshots

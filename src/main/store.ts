@@ -36,7 +36,10 @@ function defaultSettings(): Settings {
     aiAutoDescribe: true,
     aiSuggestProject: true,
     ocrEnabled: true,
+    screenshotFormat: 'png',
+    jpegQuality: 90,
     recordingMicId: '',
+    recordingFormat: 'mp4',
     hotkeys: {
       region: 'Control+Shift+1',
       window: 'Control+Shift+2',

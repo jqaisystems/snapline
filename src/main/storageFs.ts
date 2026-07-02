@@ -124,7 +124,9 @@ export function saveCaptureBuffer(buffer: Buffer, ctx: SaveContext, settings: Se
   const dir = projectDir(ctx.project)
   if (!dir) return null
   const base = formatName(settings.namingPattern, ctx.project?.name ?? '', ctx.mode)
-  const filePath = uniqueFilePath(dir, base, '.png')
+  // Extension must match how capture.ts encoded the buffer (same setting drives both).
+  const ext = settings.screenshotFormat === 'jpeg' ? '.jpg' : '.png'
+  const filePath = uniqueFilePath(dir, base, ext)
   fs.writeFileSync(filePath, buffer)
   return indexFile(filePath, ctx.project ? ctx.project.id : null, ctx.mode, {
     sourceApp: ctx.sourceApp ?? null,
@@ -179,12 +181,13 @@ export function saveRecordedVideo(
   poster: Buffer | null,
   meta: { width: number; height: number; durationMs: number },
   ctx: SaveContext,
-  settings: Settings
+  settings: Settings,
+  ext: string = '.webm'
 ): Screenshot | null {
   const dir = projectDir(ctx.project)
   if (!dir) return null
   const base = formatName(settings.namingPattern, ctx.project?.name ?? '', ctx.mode)
-  const filePath = uniqueFilePath(dir, base, '.webm')
+  const filePath = uniqueFilePath(dir, base, ext)
   fs.writeFileSync(filePath, webm)
   const id = randomUUID()
   let thumbPath: string | null = null

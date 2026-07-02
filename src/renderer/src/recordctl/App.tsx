@@ -22,6 +22,7 @@ export default function App(): React.ReactElement {
   const startedAtRef = useRef(0)
   const cancelledRef = useRef(false)
   const endedRef = useRef(false) // stop()/cancel() are single-shot; guards the finish-vs-cancel race
+  const containerRef = useRef<'mp4' | 'webm'>('webm') // actual container MediaRecorder produced
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -71,8 +72,9 @@ export default function App(): React.ReactElement {
 
         await capturePoster(stream)
 
-        const mimeType = pickMime()
-        const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+        const picked = pickMime(cfg.format)
+        containerRef.current = picked.container
+        const rec = new MediaRecorder(stream, picked.mimeType ? { mimeType: picked.mimeType } : undefined)
         rec.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
         }
@@ -94,11 +96,25 @@ export default function App(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function pickMime(): string | null {
-    for (const o of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']) {
-      if (MediaRecorder.isTypeSupported(o)) return o
+  // Pick the best supported codec for the requested container. MP4 (H.264/AAC) is preferred for
+  // compatibility but not supported on every build, so fall back to WebM. Returns the container
+  // actually chosen so the file gets the right extension.
+  function pickMime(preferred: 'mp4' | 'webm'): { mimeType: string | null; container: 'mp4' | 'webm' } {
+    if (preferred === 'mp4') {
+      for (const o of [
+        'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4;codecs=avc1',
+        'video/mp4'
+      ]) {
+        if (MediaRecorder.isTypeSupported(o)) return { mimeType: o, container: 'mp4' }
+      }
+      // MP4 unsupported on this build: fall back to WebM below.
     }
-    return null
+    for (const o of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']) {
+      if (MediaRecorder.isTypeSupported(o)) return { mimeType: o, container: 'webm' }
+    }
+    return { mimeType: null, container: 'webm' }
   }
 
   function capturePoster(stream: MediaStream): Promise<void> {
@@ -146,7 +162,8 @@ export default function App(): React.ReactElement {
       void api.cancelRecording()
       return
     }
-    const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+    const container = containerRef.current
+    const blob = new Blob(chunksRef.current, { type: container === 'mp4' ? 'video/mp4' : 'video/webm' })
     const durationMs = Math.round(performance.now() - startedAtRef.current)
     void blob.arrayBuffer().then((buf) =>
       api.finishRecording({
@@ -154,7 +171,8 @@ export default function App(): React.ReactElement {
         posterDataUrl: posterRef.current,
         width: dimsRef.current.width,
         height: dimsRef.current.height,
-        durationMs
+        durationMs,
+        ext: container
       })
     )
   }

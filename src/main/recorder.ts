@@ -45,7 +45,13 @@ export async function startRecording(mode: 'screen' | 'window'): Promise<{ ok: b
     const project = store.getProject(settings.activeProjectId) ?? null
     pending = {
       project,
-      config: { sourceId, mic: true, micDeviceId: settings.recordingMicId || undefined, mode: 'record' }
+      config: {
+        sourceId,
+        mic: true,
+        micDeviceId: settings.recordingMicId || undefined,
+        format: settings.recordingFormat,
+        mode: 'record'
+      }
     }
     // Preflight the OS mic permission while the library is still visible, so a blocked mic gets an
     // actionable message instead of a silently audio-less video. The recording still proceeds.
@@ -70,6 +76,7 @@ export function finishRecording(payload: {
   width: number
   height: number
   durationMs: number
+  ext?: 'mp4' | 'webm' // actual container the renderer produced (default webm)
 }): void {
   const p = pending
   pending = null
@@ -96,7 +103,8 @@ export function finishRecording(payload: {
       poster,
       { width: payload.width, height: payload.height, durationMs: payload.durationMs },
       { mode: 'record', project: p.project },
-      store.getSettings()
+      store.getSettings(),
+      payload.ext === 'mp4' ? '.mp4' : '.webm'
     )
     if (!shot) return
     store.addScreenshot(shot)

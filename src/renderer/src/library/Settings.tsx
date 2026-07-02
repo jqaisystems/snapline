@@ -215,6 +215,41 @@ export default function Settings({ settings, onClose }: { settings: Settings; on
                   <option value="pin">{t('settings.afterCapturePin')}</option>
                 </select>
               </Row>
+              <Row title={t('settings.screenshotFormat')} desc={t('settings.screenshotFormatDesc')}>
+                <select
+                  className="select"
+                  style={{ width: 180 }}
+                  value={settings.screenshotFormat}
+                  onChange={(e) => set({ screenshotFormat: e.target.value as Settings['screenshotFormat'] })}
+                >
+                  <option value="png">{t('settings.formatPng')}</option>
+                  <option value="jpeg">{t('settings.formatJpeg')}</option>
+                </select>
+              </Row>
+              {settings.screenshotFormat === 'jpeg' && (
+                <Row title={t('settings.jpegQuality')} desc={t('settings.jpegQualityDesc')}>
+                  <input
+                    type="range"
+                    min={40}
+                    max={100}
+                    step={5}
+                    value={settings.jpegQuality}
+                    onChange={(e) => set({ jpegQuality: Number(e.target.value) })}
+                  />
+                  <span className="small muted" style={{ marginLeft: 8 }}>{settings.jpegQuality}</span>
+                </Row>
+              )}
+              <Row title={t('settings.recordingFormat')} desc={t('settings.recordingFormatDesc')}>
+                <select
+                  className="select"
+                  style={{ width: 180 }}
+                  value={settings.recordingFormat}
+                  onChange={(e) => set({ recordingFormat: e.target.value as Settings['recordingFormat'] })}
+                >
+                  <option value="mp4">{t('settings.formatMp4')}</option>
+                  <option value="webm">{t('settings.formatWebm')}</option>
+                </select>
+              </Row>
               <Row title={t('settings.copyToClipboard')} desc={t('settings.copyToClipboardDesc')}>
                 <Toggle on={settings.copyToClipboardOnCapture} onChange={(v) => set({ copyToClipboardOnCapture: v })} />
               </Row>

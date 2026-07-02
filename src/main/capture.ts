@@ -2,6 +2,18 @@ import { desktopCapturer, screen, nativeImage } from 'electron'
 import type { Display, NativeImage, WebContents } from 'electron'
 import type { OverlayData, OverlayResult, Rect } from '../shared/types'
 import { createOverlayWindow, closeOverlayWindow } from './windows'
+import { getStore } from './store'
+
+// Encode a captured image using the user's chosen screenshot format (PNG default; JPEG for
+// smaller files). The matching file extension is chosen from the same setting in saveCaptureBuffer.
+function encodeCapture(img: NativeImage): Buffer {
+  const s = getStore().getSettings()
+  if (s.screenshotFormat === 'jpeg') {
+    const q = Math.min(100, Math.max(1, Math.round(s.jpegQuality || 90)))
+    return img.toJPEG(q)
+  }
+  return img.toPNG()
+}
 
 // One entry per open overlay window. Region capture opens one window per monitor; window
 // capture opens a single window on the cursor's display. Each window is matched to its
@@ -167,7 +179,7 @@ export async function selectRegion(): Promise<{ display: Display; rect: Rect } |
 
 export async function captureFullscreen(): Promise<Buffer | null> {
   const img = await captureDisplayImage(displayUnderCursor())
-  return img.isEmpty() ? null : img.toPNG()
+  return img.isEmpty() ? null : encodeCapture(img)
 }
 
 export async function captureRegion(): Promise<Buffer | null> {
@@ -182,7 +194,7 @@ export async function captureRegion(): Promise<Buffer | null> {
   }
   if (crop.width < 3 || crop.height < 3) return null
   const cropped = r.img.crop(crop)
-  return cropped.isEmpty() ? null : cropped.toPNG()
+  return cropped.isEmpty() ? null : encodeCapture(cropped)
 }
 
 export async function captureWindow(): Promise<Buffer | null> {
@@ -199,5 +211,5 @@ export async function captureWindow(): Promise<Buffer | null> {
   if (!result || result.kind !== 'window') return null
   const chosen = sources.find((s) => s.id === result.sourceId)
   if (!chosen || chosen.thumbnail.isEmpty()) return null
-  return chosen.thumbnail.toPNG()
+  return encodeCapture(chosen.thumbnail)
 }
